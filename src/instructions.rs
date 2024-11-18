@@ -31,3 +31,12 @@ pub enum Instruction {
     SLA(ArithmeticTarget),
     SWAP(ArithmeticTarget),
 }
+
+impl Instruction{
+    pub fn from_byte(byte: u8) -> Option<Instruction> { 
+        match byte {
+            0x03 => { Some(Instruction::INC(ArithmeticTarget::B)) },
+            _ => panic!("Instruction not implemented yet: {:#X}", byte),
+        }
+     }
+}

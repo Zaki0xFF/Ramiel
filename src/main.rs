@@ -5,6 +5,18 @@ use instructions::*;
 
 pub struct CPU {
     registers: Registers,
+    pc: u16,
+    bus: MemoryBus,
+}
+
+struct MemoryBus {
+    memory: [u8; 0xFFFF]
+}
+
+impl MemoryBus {
+    fn read_byte(&self, address: u16) -> u8 {
+      self.memory[address as usize]
+    }
 }
 
 impl CPU {
@@ -20,7 +32,19 @@ impl CPU {
         }
     }
 
-    fn execute(&mut self, instruction: Instruction) {
+    fn step(&mut self) {
+        let mut instruction_byte = self.bus.read_byte(self.pc);
+    
+        let next_pc: u16 = if let Some(instruction) = Instruction::from_byte(instruction_byte) {
+          self.execute(instruction)
+        } else {
+          panic!("Unkown instruction found for: 0x{:x}", instruction_byte);
+        };
+    
+        self.pc = next_pc;
+      }
+
+    fn execute(&mut self, instruction: Instruction) -> u16 {
         match instruction {
             Instruction::ADD(target) => {
                 let value = self.get_register_value(target);
@@ -112,7 +136,7 @@ impl CPU {
                     ArithmeticTarget::D => { self.registers.d += 1;}
                     ArithmeticTarget::E => { self.registers.e += 1;}
                     ArithmeticTarget::H => { self.registers.h += 1;}
-                    ArithmeticTarget::L => { self.registers.l += 1;}  
+                    ArithmeticTarget::L => { self.registers.l += 1;}
                 }
             }
             Instruction::DEC(target) => {
@@ -254,6 +278,7 @@ impl CPU {
             }
             _ => { /* TODO: support more instructions */ }
         }
+        return self.pc.wrapping_add(1);
     }
 }
 
