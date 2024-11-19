@@ -31,6 +31,13 @@ pub enum ArithmeticTarget {
     L,
 }
 
+pub enum DoubleTarget {
+    BC,
+    DE,
+    HL,
+    SP,
+}
+
 impl std::convert::From<FlagsRegister> for u8 {
     fn from(flag: FlagsRegister) -> u8 {
         (if flag.zero { 1 } else { 0 }) << ZERO_FLAG_BYTE_POSITION

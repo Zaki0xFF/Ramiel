@@ -3,12 +3,14 @@ pub mod instructions;
 use registers::*;
 use instructions::*;
 
+
 pub struct CPU {
     registers: Registers,
     pc: u16,
     bus: MemoryBus,
 }
 
+#[allow(dead_code)]
 struct MemoryBus {
     memory: [u8; 0xFFFF]
 }
@@ -19,6 +21,7 @@ impl MemoryBus {
     }
 }
 
+#[allow(dead_code)]
 impl CPU {
     fn get_register_value(&self, target: ArithmeticTarget) -> u8 {
         match target {
@@ -33,7 +36,7 @@ impl CPU {
     }
 
     fn step(&mut self) {
-        let mut instruction_byte = self.bus.read_byte(self.pc);
+        let instruction_byte = self.bus.read_byte(self.pc);
     
         let next_pc: u16 = if let Some(instruction) = Instruction::from_byte(instruction_byte) {
           self.execute(instruction)
@@ -150,35 +153,35 @@ impl CPU {
                     ArithmeticTarget::L => { self.registers.l -= 1;}  
                 }
             }
-            Instruction::CCF(target) => {
+            Instruction::CCF() => {
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = !self.registers.f.carry;
             }
-            Instruction::SCF(target) => {
+            Instruction::SCF() => {
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = true;
             }
-            Instruction::RRA(target) => {
+            Instruction::RRA() => {
                 let carry = self.registers.f.carry;
                 self.registers.f.carry = self.registers.a & 0x1 == 0x1;
                 self.registers.a = (self.registers.a >> 1) | (if carry { 0x80 } else { 0x00 });
             }
-            Instruction::RLA(target) => {
+            Instruction::RLA() => {
                 let carry = self.registers.f.carry;
                 self.registers.f.carry = self.registers.a & 0x80 == 0x80;
                 self.registers.a = (self.registers.a << 1) | (if carry { 0x1 } else { 0x0 });
             }
-            Instruction::RRCA(target) => {
+            Instruction::RRCA() => {
                 self.registers.f.carry = self.registers.a & 0x1 == 0x1;
                 self.registers.a = (self.registers.a >> 1) | (self.registers.a << 7);
             }
-            Instruction::RRLA(target) => {
+            Instruction::RRLA() => {
                 self.registers.f.carry = self.registers.a & 0x80 == 0x80;
                 self.registers.a = (self.registers.a << 1) | (self.registers.a >> 7);
             }
-            Instruction::CPL(target) => {
+            Instruction::CPL() => {
                 self.registers.a = !self.registers.a;
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = true;
@@ -276,7 +279,9 @@ impl CPU {
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = false;
             }
-            _ => { /* TODO: support more instructions */ }
+            Instruction::NOP() => {}
+            Instruction::STOP() => {unimplemented!("STOP instruction not implemented yet")},
+            _ => { /* TODO: support more instructions */ unimplemented!("not implemented yet cannot execute") }
         }
         return self.pc.wrapping_add(1);
     }
