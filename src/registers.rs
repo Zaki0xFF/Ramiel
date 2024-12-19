@@ -20,7 +20,7 @@ pub struct Registers {
     pub h: u8,
     pub l: u8,
 }
-
+#[derive(Clone, Copy, Debug)]
 pub enum ArithmeticTarget {
     A,
     B,
@@ -30,7 +30,7 @@ pub enum ArithmeticTarget {
     H,
     L,
 }
-
+#[derive(Clone, Copy, Debug)]
 pub enum DoubleTarget {
     BC,
     DE,

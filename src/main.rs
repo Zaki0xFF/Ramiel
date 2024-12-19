@@ -37,7 +37,7 @@ impl CPU {
 
     fn step(&mut self) {
         let mut instruction_byte = self.bus.read_byte(self.pc);
-        let mut prefixed = instruction_byte == 0xCB;
+        let prefixed = instruction_byte == 0xCB;
         if prefixed{
             instruction_byte = self.bus.read_byte(self.pc.wrapping_add(1));
             panic!("Prefixed instruction not supported: 0xCB{:x}", instruction_byte);
@@ -330,12 +330,12 @@ impl CPU {
             Instruction::DAA() => {unimplemented!("DAA instruction not implemented yet")},
             _ => { /* TODO: support more instructions */ unimplemented!("not implemented yet cannot execute") }
         }
+        print!("{:?}", &instruction);
         return self.pc.wrapping_add(1);
     }
 }
 
 fn main() {
-    let mut prefixed: bool = false;
     let mut cpu = CPU {
         registers: Registers {
             a: 0,

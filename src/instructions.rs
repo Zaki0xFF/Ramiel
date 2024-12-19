@@ -1,5 +1,5 @@
 use super::registers::*;
-
+#[derive(Clone, Copy, Debug)]
 pub enum Instruction {
     //u8 instructions
     ADD(ArithmeticTarget),
@@ -52,8 +52,8 @@ impl Instruction{
     pub fn from_byte(byte: u8) -> Option<Instruction> { 
         match byte {
             0x00 => { Some(Instruction::NOP()) },
-            0x01 => { Some(Instruction::LDDBL((DoubleTarget::BC))) },
-            0x02 => { Some(Instruction::LDDBLA(DoubleTarget::BC, (ArithmeticTarget::A))) },
+            0x01 => { Some(Instruction::LDDBL(DoubleTarget::BC)) },
+            0x02 => { Some(Instruction::LDDBLA(DoubleTarget::BC, ArithmeticTarget::A)) },
             0x03 => { Some(Instruction::INCDBL(DoubleTarget::BC)) },
             0x04 => { Some(Instruction::INC(ArithmeticTarget::B)) },
             0x05 => { Some(Instruction::DEC(ArithmeticTarget::B)) },
