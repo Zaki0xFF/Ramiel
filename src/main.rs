@@ -3,7 +3,6 @@ pub mod instructions;
 use registers::*;
 use instructions::*;
 
-
 pub struct CPU {
     registers: Registers,
     pc: u16,
@@ -37,12 +36,17 @@ impl CPU {
     }
 
     fn step(&mut self) {
-        let instruction_byte = self.bus.read_byte(self.pc);
-    
+        let mut instruction_byte = self.bus.read_byte(self.pc);
+        let mut prefixed = instruction_byte == 0xCB;
+        if prefixed{
+            instruction_byte = self.bus.read_byte(self.pc.wrapping_add(1));
+            panic!("Prefixed instruction not supported: 0xCB{:x}", instruction_byte);
+        }
         let next_pc: u16 = if let Some(instruction) = Instruction::from_byte(instruction_byte) {
           self.execute(instruction)
         } else {
-          panic!("Unkown instruction found for: 0x{:x}", instruction_byte);
+            let description = format!("0x{}{:x}", if prefixed { "cb" } else { "" }, instruction_byte);
+            panic!("Unkown instruction found for: {}", description);
         };
     
         self.pc = next_pc;
@@ -300,6 +304,27 @@ impl CPU {
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = false;
             }
+            Instruction::LD(target) => {
+                let value = self.bus.read_byte(self.pc.wrapping_add(1));
+                match target {
+                    ArithmeticTarget::A => { self.registers.a = value; }
+                    ArithmeticTarget::B => { self.registers.b = value; }
+                    ArithmeticTarget::C => { self.registers.c = value; }
+                    ArithmeticTarget::D => { self.registers.d = value; }
+                    ArithmeticTarget::E => { self.registers.e = value; }
+                    ArithmeticTarget::H => { self.registers.h = value; }
+                    ArithmeticTarget::L => { self.registers.l = value; }
+                }
+            }
+            Instruction::LDDBL(target) => {
+                let value = self.bus.read_byte(self.pc.wrapping_add(1));
+                match target {
+                    DoubleTarget::BC => { self.registers.set_bc(value as u16); }
+                    DoubleTarget::DE => { self.registers.set_de(value as u16); }
+                    DoubleTarget::HL => { self.registers.set_hl(value as u16); }
+                    DoubleTarget::SP => { self.sp = value as u16; }
+                }
+            }
             Instruction::NOP() => {}
             Instruction::STOP() => {unimplemented!("STOP instruction not implemented yet")},
             Instruction::DAA() => {unimplemented!("DAA instruction not implemented yet")},
@@ -310,6 +335,7 @@ impl CPU {
 }
 
 fn main() {
+    let mut prefixed: bool = false;
     let mut cpu = CPU {
         registers: Registers {
             a: 0,

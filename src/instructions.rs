@@ -3,7 +3,6 @@ use super::registers::*;
 pub enum Instruction {
     //u8 instructions
     ADD(ArithmeticTarget),
-    ADDHL(DoubleTarget),
     ADC(ArithmeticTarget),
     SUB(ArithmeticTarget),
     SBC(ArithmeticTarget),
@@ -13,13 +12,6 @@ pub enum Instruction {
     CP(ArithmeticTarget),
     INC(ArithmeticTarget),
     DEC(ArithmeticTarget),
-    CCF(),
-    SCF(),
-    RRA(),
-    RLA(),
-    RRCA(),
-    RRLA(),
-    CPL(),
     BIT(ArithmeticTarget),
     RESET(ArithmeticTarget),
     SET(ArithmeticTarget),
@@ -31,26 +23,41 @@ pub enum Instruction {
     SRA(ArithmeticTarget),
     SLA(ArithmeticTarget),
     SWAP(ArithmeticTarget),
+    LD(ArithmeticTarget),
+
+    //No target instructions
     NOP(),
     STOP(),
-    LD(ArithmeticTarget),
     DAA(),
+    CCF(),
+    SCF(),
+    RRA(),
+    RLA(),
+    RRCA(),
+    RRLA(),
+    CPL(),
 
     //u16 instructions
+    ADDHL(DoubleTarget),
     INCDBL(DoubleTarget),
     DECDBL(DoubleTarget),
+    LDDBL(DoubleTarget),
+    LDDBLA(DoubleTarget, ArithmeticTarget),
 }
 
 impl Instruction{
+    pub fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
+        panic!("Prefix instruction not implemented yet: {:#X}", byte)
+    }
     pub fn from_byte(byte: u8) -> Option<Instruction> { 
         match byte {
             0x00 => { Some(Instruction::NOP()) },
-            0x01 => { unimplemented!("Instruction not implemented yet: {:#X}", byte) },
-            0x02 => { unimplemented!("Instruction not implemented yet: {:#X}", byte) },
+            0x01 => { Some(Instruction::LDDBL((DoubleTarget::BC))) },
+            0x02 => { Some(Instruction::LDDBLA(DoubleTarget::BC, (ArithmeticTarget::A))) },
             0x03 => { Some(Instruction::INCDBL(DoubleTarget::BC)) },
             0x04 => { Some(Instruction::INC(ArithmeticTarget::B)) },
             0x05 => { Some(Instruction::DEC(ArithmeticTarget::B)) },
-            0x06 => { unimplemented!("Instruction not implemented yet: {:#X}", byte) },
+            0x06 => { Some(Instruction::LD(ArithmeticTarget::B)) },
             0x07 => { Some(Instruction::RLC(ArithmeticTarget::A)) },
             0x08 => { unimplemented!("Instruction not implemented yet: {:#X}", byte) },
             0x09 => { Some(Instruction::ADDHL(DoubleTarget::BC)) },
