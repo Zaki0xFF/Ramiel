@@ -1,5 +1,6 @@
 pub mod registers;
 pub mod instructions;
+mod unit_tests;
 use registers::*;
 use instructions::*;
 
@@ -23,6 +24,36 @@ impl MemoryBus {
 
 #[allow(dead_code)]
 impl CPU {
+    pub fn new() -> CPU {
+        CPU {
+            registers: Registers {
+                a: 0,
+                b: 0,
+                c: 0,
+                d: 0,
+                e: 0,
+                f: FlagsRegister {
+                    zero: false,
+                    subtract: false,
+                    half_carry: false,
+                    carry: false,
+                },
+                h: 0,
+                l: 0,
+            },
+            pc: 0,
+            sp: 0,
+            bus: MemoryBus {
+                memory: {
+                    let mut mem = [0u8; 0xFFFF];
+                    //let boot_rom = include_bytes!("../roms/dmg0_boot.bin");
+                    //mem[..boot_rom.len()].copy_from_slice(boot_rom);
+                    mem
+                },
+            },
+        }
+    }
+
     fn get_register_value(&self, target: ArithmeticTarget) -> u8 {
         match target {
             ArithmeticTarget::A => self.registers.a,
@@ -336,33 +367,7 @@ impl CPU {
 }
 
 fn main() {
-    let mut cpu = CPU {
-        registers: Registers {
-            a: 0,
-            b: 0,
-            c: 0,
-            d: 0,
-            e: 0,
-            f: FlagsRegister {
-                zero: false,
-                subtract: false,
-                half_carry: false,
-                carry: false,
-            },
-            h: 0,
-            l: 0,
-        },
-        pc: 0,
-        sp: 0,
-        bus: MemoryBus {
-            memory: {
-                let mut mem = [0u8; 0xFFFF];
-                let boot_rom = include_bytes!("../roms/dmg0_boot.bin");
-                mem[..boot_rom.len()].copy_from_slice(boot_rom);
-                mem
-            },
-        },
-    };
+    let mut cpu = CPU::new();
 
     cpu.step();
 }
