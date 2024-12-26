@@ -115,7 +115,7 @@ impl CPU {
                 self.registers.f.subtract = false;
                 self.registers.f.carry = did_overflow;
                 self.registers.f.half_carry = (self.registers.a & 0xF) + (value & 0xF) + carry > 0xF;
-                self.registers.a = new_value;
+                self.registers.a = new_value.wrapping_add(if did_overflow { 1 } else { 0 });
             }
             Instruction::SUB(target) => {
                 let value = self.get_register_value(target);
@@ -355,6 +355,15 @@ impl CPU {
                     DoubleTarget::HL => { self.registers.set_hl(value as u16); }
                     DoubleTarget::SP => { self.sp = value as u16; }
                 }
+            }
+            Instruction::ADCHL(target) => {
+                let value = self.bus.read_byte(self.pc.wrapping_add(1));
+                let (new_value, did_overflow) = self.registers.get_hl().overflowing_add(value as u16);
+                self.registers.f.zero = new_value == 0;
+                self.registers.f.subtract = false;
+                self.registers.f.carry = did_overflow;
+                self.registers.f.half_carry = (self.registers.get_hl() & 0xFFF) + (value as u16 & 0xFFF) > 0xFFF;
+                self.registers.set_hl(new_value);
             }
             Instruction::NOP() => {}
             Instruction::STOP() => {unimplemented!("STOP instruction not implemented yet")},
