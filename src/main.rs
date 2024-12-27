@@ -242,9 +242,9 @@ impl CPU {
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = true;
             }
-            Instruction::BIT(target) => {
+            Instruction::BIT(u8,target) => {
                 let value = self.get_register_value(target);
-                self.registers.f.zero = (value & 0x1) == 0;
+                self.registers.f.zero = (value & (1 << u8)) == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = true;
             }

@@ -12,7 +12,7 @@ pub enum Instruction {
     CP(ArithmeticTarget),
     INC(ArithmeticTarget),
     DEC(ArithmeticTarget),
-    BIT(ArithmeticTarget),
+    BIT(u8,ArithmeticTarget),
     RESET(ArithmeticTarget),
     SET(ArithmeticTarget),
     SRL(ArithmeticTarget),
@@ -44,6 +44,7 @@ pub enum Instruction {
     DECDBL(DoubleTarget),
     LDDBL(DoubleTarget),
     LDDBLA(DoubleTarget, ArithmeticTarget),
+    ANDHL(),
 }
 
 impl Instruction{

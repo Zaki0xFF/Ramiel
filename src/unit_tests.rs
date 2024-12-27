@@ -47,4 +47,12 @@ mod instructions_unit {
         cpu.execute(Instruction::AND(ArithmeticTarget::B));
         assert_eq!(cpu.registers.a, 0b10001000);
     }
+
+    #[test]
+    fn bit(){ //BIT r8
+        let mut cpu = CPU::new();
+        cpu.registers.a = 0b00001000;
+        cpu.execute(Instruction::BIT(3,ArithmeticTarget::A));
+        assert_eq!(cpu.registers.f.zero, false);
+    }
 }
