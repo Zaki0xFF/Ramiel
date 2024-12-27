@@ -5,11 +5,11 @@ pub enum Instruction {
     ADC(ArithmeticTarget),
     ADD(ArithmeticTarget),
     AND(ArithmeticTarget),
+    CP(ArithmeticTarget),
     SUB(ArithmeticTarget),
     SBC(ArithmeticTarget),
     OR(ArithmeticTarget),
     XOR(ArithmeticTarget),
-    CP(ArithmeticTarget),
     INC(ArithmeticTarget),
     DEC(ArithmeticTarget),
     BIT(u8,ArithmeticTarget),
@@ -26,16 +26,16 @@ pub enum Instruction {
     LD(ArithmeticTarget),
 
     //No target instructions
+    CCF(),
+    CPL(),
+    DAA(),
     NOP(),
     STOP(),
-    DAA(),
-    CCF(),
     SCF(),
     RRA(),
     RLA(),
     RRCA(),
     RRLA(),
-    CPL(),
 
     //u16 instructions
     ADCHL(DoubleTarget),

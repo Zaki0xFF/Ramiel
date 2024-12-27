@@ -367,7 +367,33 @@ impl CPU {
             }
             Instruction::NOP() => {}
             Instruction::STOP() => {unimplemented!("STOP instruction not implemented yet")},
-            Instruction::DAA() => {unimplemented!("DAA instruction not implemented yet")},
+            Instruction::DAA() => {
+                let mut adjust = 0;
+                let mut carry = self.registers.f.carry;
+            
+                if !self.registers.f.subtract {
+                    if self.registers.f.half_carry || (self.registers.a & 0x0F) > 9 {
+                        adjust |= 0x06;
+                    }
+                    if self.registers.f.carry || self.registers.a > 0x99 {
+                        adjust |= 0x60;
+                        carry = true;
+                    }
+                    self.registers.a = self.registers.a.wrapping_add(adjust);
+                } else {
+                    if self.registers.f.half_carry {
+                        adjust |= 0x06;
+                    }
+                    if self.registers.f.carry {
+                        adjust |= 0x60;
+                    }
+                    self.registers.a = self.registers.a.wrapping_sub(adjust);
+                }
+            
+                self.registers.f.half_carry = false;
+                self.registers.f.zero = self.registers.a == 0;
+                self.registers.f.carry = carry;
+            }
             _ => { /* TODO: support more instructions */ unimplemented!("not implemented yet cannot execute") }
         }
         print!("{:?}", &instruction);

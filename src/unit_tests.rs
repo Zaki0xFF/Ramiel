@@ -55,4 +55,44 @@ mod instructions_unit {
         cpu.execute(Instruction::BIT(3,ArithmeticTarget::A));
         assert_eq!(cpu.registers.f.zero, false);
     }
+
+    #[test]
+    fn ccf(){ //CCF
+        let mut cpu = CPU::new();
+        cpu.registers.f.carry = true;
+        cpu.execute(Instruction::CCF());
+        assert_eq!(cpu.registers.f.carry, false);
+    }
+
+    #[test]
+    fn cp(){ //CP r8
+        let mut cpu = CPU::new();
+        cpu.registers.a = 0x12;
+        cpu.registers.b = 0x12;
+        cpu.execute(Instruction::CP(ArithmeticTarget::B));
+        assert_eq!(cpu.registers.f.zero, true);
+    }
+
+    #[test]
+    fn cpl(){ //CPL
+        let mut cpu = CPU::new();
+        cpu.registers.a = 0b10101010;
+        cpu.execute(Instruction::CPL());
+        assert_eq!(cpu.registers.a, 0b01010101);
+        assert_eq!(cpu.registers.f.subtract, true);
+        assert_eq!(cpu.registers.f.half_carry, true);
+    }
+
+    #[test]
+    fn daa() {
+        let mut cpu = CPU::new();
+        cpu.registers.a = 0x3c; // 0x3c = 60 DEC
+        cpu.registers.f.half_carry = true;
+        cpu.registers.f.carry = false;
+        cpu.execute(Instruction::DAA());
+        assert_eq!(cpu.registers.a, 0x42); // Sprawdź, czy A = 42 DEC
+        assert_eq!(cpu.registers.f.zero, false);
+        assert_eq!(cpu.registers.f.half_carry, false);
+        assert_eq!(cpu.registers.f.carry, false);
+    }
 }
