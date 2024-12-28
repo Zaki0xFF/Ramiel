@@ -95,4 +95,30 @@ mod instructions_unit {
         assert_eq!(cpu.registers.f.half_carry, false);
         assert_eq!(cpu.registers.f.carry, false);
     }
+
+    #[test]
+    fn dec() {
+        let mut cpu = CPU::new();
+        cpu.registers.a = 0x01;
+        cpu.execute(Instruction::DEC(ArithmeticTarget::A));
+        assert_eq!(cpu.registers.a, 0x00);
+        assert_eq!(cpu.registers.f.zero, true);
+        assert_eq!(cpu.registers.f.subtract, true);
+    }
+
+    #[test]
+    fn ei() {
+        let mut cpu = CPU::new();
+        cpu.registers.ime = false;
+        cpu.execute(Instruction::EI());
+        assert_eq!(cpu.registers.ime, true);
+    }
+
+    #[test]
+    fn di() {
+        let mut cpu = CPU::new();
+        cpu.registers.ime = true;
+        cpu.execute(Instruction::DI());
+        assert_eq!(cpu.registers.ime, false);
+    }
 }

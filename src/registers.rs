@@ -19,6 +19,7 @@ pub struct Registers {
     pub f: FlagsRegister,
     pub h: u8,
     pub l: u8,
+    pub ime: bool,
 }
 #[derive(Clone, Copy, Debug)]
 pub enum ArithmeticTarget {

@@ -36,6 +36,8 @@ pub enum Instruction {
     RLA(),
     RRCA(),
     RRLA(),
+    DI(),
+    EI(),
 
     //u16 instructions
     ADCHL(DoubleTarget),

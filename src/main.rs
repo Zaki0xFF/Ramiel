@@ -40,6 +40,7 @@ impl CPU {
                 },
                 h: 0,
                 l: 0,
+                ime: false,
             },
             pc: 0,
             sp: 0,
@@ -192,14 +193,42 @@ impl CPU {
             }
             Instruction::DEC(target) => {
                 match target {
-                    ArithmeticTarget::A => { self.registers.a -= 1;}
-                    ArithmeticTarget::B => { self.registers.b -= 1;}
-                    ArithmeticTarget::C => { self.registers.c -= 1;}
-                    ArithmeticTarget::D => { self.registers.d -= 1;}
-                    ArithmeticTarget::E => { self.registers.e -= 1;}
-                    ArithmeticTarget::H => { self.registers.h -= 1;}
-                    ArithmeticTarget::L => { self.registers.l -= 1;}  
-                }
+                    ArithmeticTarget::A => { 
+                        self.registers.a -= 1;
+                        self.registers.f.zero = self.registers.a == 0;
+                        self.registers.f.half_carry = (self.registers.a & 0xF) == 0;
+                    }
+                    ArithmeticTarget::B => { 
+                        self.registers.b -= 1;
+                        self.registers.f.zero = self.registers.b == 0;
+                        self.registers.f.half_carry = (self.registers.b & 0xF) == 0;
+                    }
+                    ArithmeticTarget::C => {
+                         self.registers.c -= 1;
+                         self.registers.f.zero = self.registers.c == 0;
+                         self.registers.f.half_carry = (self.registers.c & 0xF) == 0;
+                    }
+                    ArithmeticTarget::D => { 
+                        self.registers.d -= 1;
+                        self.registers.f.zero = self.registers.d == 0;
+                        self.registers.f.half_carry = (self.registers.d & 0xF) == 0;
+                    }
+                    ArithmeticTarget::E => { 
+                        self.registers.e -= 1;
+                        self.registers.f.zero = self.registers.e == 0;
+                        self.registers.f.half_carry = (self.registers.e & 0xF) == 0;
+                    }
+                    ArithmeticTarget::H => { 
+                        self.registers.h -= 1;
+                        self.registers.f.zero = self.registers.h == 0;
+                        self.registers.f.half_carry = (self.registers.h & 0xF) == 0;
+                    }
+                    ArithmeticTarget::L => { 
+                        self.registers.l -= 1;
+                        self.registers.f.zero = self.registers.l == 0;
+                        self.registers.f.half_carry = (self.registers.l & 0xF) == 0;}  
+                    }
+                self.registers.f.subtract = true;
             }
             Instruction::DECDBL(target) => {
                 match target {
@@ -389,11 +418,12 @@ impl CPU {
                     }
                     self.registers.a = self.registers.a.wrapping_sub(adjust);
                 }
-            
                 self.registers.f.half_carry = false;
                 self.registers.f.zero = self.registers.a == 0;
                 self.registers.f.carry = carry;
             }
+            Instruction::DI() => {self.registers.ime = false;}
+            Instruction::EI() => {self.registers.ime = true;}
             _ => { /* TODO: support more instructions */ unimplemented!("not implemented yet cannot execute") }
         }
         print!("{:?}", &instruction);
