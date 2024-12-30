@@ -23,7 +23,7 @@ pub enum Instruction {
     SRA(ArithmeticTarget),
     SLA(ArithmeticTarget),
     SWAP(ArithmeticTarget),
-    LD(ArithmeticTarget),
+    LD(Target, Target),
 
     //No target instructions
     CCF(),
@@ -53,7 +53,7 @@ impl Instruction{
     pub fn from_prefixed_byte(byte: u8) -> Option<Instruction> {
         panic!("Prefix instruction not implemented yet: {:#X}", byte)
     }
-    pub fn from_byte(byte: u8) -> Option<Instruction> { 
+    pub fn from_byte(byte: u8) -> Option<Instruction> {
         match byte {
             0x00 => { Some(Instruction::NOP()) },
             0x01 => { Some(Instruction::LDDBL(DoubleTarget::BC)) },
@@ -61,7 +61,7 @@ impl Instruction{
             0x03 => { Some(Instruction::INCDBL(DoubleTarget::BC)) },
             0x04 => { Some(Instruction::INC(ArithmeticTarget::B)) },
             0x05 => { Some(Instruction::DEC(ArithmeticTarget::B)) },
-            0x06 => { Some(Instruction::LD(ArithmeticTarget::B)) },
+            0x06 => { Some(Instruction::LD(Target::Register(ArithmeticTarget::B), Target::Const8())) },
             0x07 => { Some(Instruction::RLC(ArithmeticTarget::A)) },
             0x08 => { unimplemented!("Instruction not implemented yet: {:#X}", byte) },
             0x09 => { Some(Instruction::ADDHL(DoubleTarget::BC)) },

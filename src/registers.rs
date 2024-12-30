@@ -31,6 +31,18 @@ pub enum ArithmeticTarget {
     H,
     L,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub enum Target {
+    Register(ArithmeticTarget),
+    Register16(DoubleTarget),
+    MemoryR8(ArithmeticTarget),
+    MemoryR16(DoubleTarget),
+    Const8(),
+    Const16(),
+    MemoryConst16(),
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum DoubleTarget {
     BC,

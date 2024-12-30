@@ -1,13 +1,13 @@
+#[cfg(test)]
 use registers::*;
 use instructions::*;
 
 use crate::{instructions, registers};
+use crate::CPU;
 
-#[cfg(test)]
 mod instructions_unit {
-    use crate::CPU;
-
     use super::*;
+
     #[test]
     fn add() {//ADD A, r8
         let mut cpu = CPU::new();
@@ -130,5 +130,13 @@ mod instructions_unit {
         cpu.registers.ime = true;
         cpu.execute(Instruction::DI());
         assert_eq!(cpu.registers.ime, false);
+    }
+
+    #[test]
+    fn ld() { // LD r8, r8
+        let mut cpu = CPU::new();
+        cpu.registers.a = 0x01;
+        cpu.execute(Instruction::LD(Target::Register(ArithmeticTarget::B), Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.b, 0x01);
     }
 }
