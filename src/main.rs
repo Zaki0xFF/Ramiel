@@ -283,15 +283,15 @@ impl CPU {
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = true;
             }
-            Instruction::SET(target) => {
+            Instruction::SET(offset,target) => {
                 match target {
-                    ArithmeticTarget::A => { self.registers.a |= 1 << 3; }
-                    ArithmeticTarget::B => { self.registers.b |= 1 << 3; }
-                    ArithmeticTarget::C => { self.registers.c |= 1 << 3; }
-                    ArithmeticTarget::D => { self.registers.d |= 1 << 3; }
-                    ArithmeticTarget::E => { self.registers.e |= 1 << 3; }
-                    ArithmeticTarget::H => { self.registers.h |= 1 << 3; }
-                    ArithmeticTarget::L => { self.registers.l |= 1 << 3; }
+                    ArithmeticTarget::A => { self.registers.a |= 1 << offset; }
+                    ArithmeticTarget::B => { self.registers.b |= 1 << offset; }
+                    ArithmeticTarget::C => { self.registers.c |= 1 << offset; }
+                    ArithmeticTarget::D => { self.registers.d |= 1 << offset; }
+                    ArithmeticTarget::E => { self.registers.e |= 1 << offset; }
+                    ArithmeticTarget::H => { self.registers.h |= 1 << offset; }
+                    ArithmeticTarget::L => { self.registers.l |= 1 << offset; }
                 }
                 // Update flags if necessary
                 self.registers.f.zero = false;

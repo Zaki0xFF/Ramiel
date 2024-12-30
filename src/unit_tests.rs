@@ -107,6 +107,16 @@ mod instructions_unit {
     }
 
     #[test]
+    fn inc() {
+        let mut cpu = CPU::new();
+        cpu.registers.a = 0x01;
+        cpu.execute(Instruction::INC(ArithmeticTarget::A));
+        assert_eq!(cpu.registers.a, 0x02);
+        assert_eq!(cpu.registers.f.zero, false);
+        assert_eq!(cpu.registers.f.subtract, false);
+    }
+
+    #[test]
     fn ei() {
         let mut cpu = CPU::new();
         cpu.registers.ime = false;

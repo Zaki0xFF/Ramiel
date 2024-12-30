@@ -14,7 +14,7 @@ pub enum Instruction {
     DEC(ArithmeticTarget),
     BIT(u8,ArithmeticTarget),
     RESET(ArithmeticTarget),
-    SET(ArithmeticTarget),
+    SET(u8, ArithmeticTarget),
     SRL(ArithmeticTarget),
     RR(ArithmeticTarget),
     RL(ArithmeticTarget),
