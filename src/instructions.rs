@@ -40,7 +40,7 @@ pub enum Instruction {
     EI(),
 
     //u16 instructions
-    ADCHL(DoubleTarget),
+    ADCHL(),
     ADDHL(DoubleTarget),
     INCDBL(DoubleTarget),
     DECDBL(DoubleTarget),
