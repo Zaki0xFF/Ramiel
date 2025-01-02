@@ -135,4 +135,13 @@ mod instructions_unit {
         cpu.execute(Instruction::LD(Target::Register(ArithmeticTarget::B), Target::Register(ArithmeticTarget::A)));
         assert_eq!(cpu.registers.b, 0x01);
     }
+
+    #[test]
+    fn xor(){
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10101010;
+        cpu.registers.b = 0b11001100;
+        cpu.execute(Instruction::XOR(ArithmeticTarget::B));
+        assert_eq!(cpu.registers.a, 0b01100110);
+    }
 }
