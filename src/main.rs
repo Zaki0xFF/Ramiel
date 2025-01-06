@@ -69,6 +69,10 @@ impl CPU {
         }
     }
 
+    fn jump(&mut self, address: u16) {
+        self.pc = address;
+    }
+
     fn step(&mut self) {
         let mut instruction_byte = self.bus.read_byte(self.pc);
         let prefixed = instruction_byte == 0xCB;
@@ -507,6 +511,25 @@ impl CPU {
             }
             Instruction::DI() => {self.registers.ime = false;}
             Instruction::EI() => {self.registers.ime = true;}
+            Instruction::JP(condition, address) => { //address = 0 outside tests
+                let target_address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16 
+                    | ((self.bus.read_byte(self.pc.wrapping_add(2)) as u16) << 8);
+                
+                let jump = match condition {
+                    JumpCondition::Always => true,
+                    JumpCondition::Zero => self.registers.f.zero,
+                    JumpCondition::NotZero => !self.registers.f.zero,
+                    JumpCondition::Carry => self.registers.f.carry,
+                    JumpCondition::NotCarry => !self.registers.f.carry,
+                };
+            
+                if jump {
+                    if address != 0 { self.pc = address; }
+                    else { self.pc = target_address; }
+                } else {
+                    return self.pc.wrapping_add(3);  // Skip over the instruction (1 byte) and operand (2 bytes)
+                }
+            }
             _ => { /* TODO: support more instructions */ unimplemented!("not implemented yet cannot execute") }
         }
         print!("{:?}", &instruction);

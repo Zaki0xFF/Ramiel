@@ -10,6 +10,15 @@ pub struct FlagsRegister {
     pub carry: bool,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum JumpCondition {
+    Always,
+    Zero,
+    NotZero,
+    Carry,
+    NotCarry
+}
+
 pub struct Registers {
     pub a: u8,
     pub b: u8,

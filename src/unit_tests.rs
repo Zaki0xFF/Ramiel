@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::{DoubleTarget, Target, ArithmeticTarget, CPU, Instruction};
+use crate::{DoubleTarget, Target, ArithmeticTarget, CPU, Instruction, JumpCondition};
 
 mod instructions_unit {
     use super::*;
@@ -143,5 +143,19 @@ mod instructions_unit {
         cpu.registers.b = 0b11001100;
         cpu.execute(Instruction::XOR(ArithmeticTarget::B));
         assert_eq!(cpu.registers.a, 0b01100110);
+    }
+    #[test]
+    fn test_jp() {
+        let mut cpu = CPU::default();
+        cpu.execute(Instruction::JP(JumpCondition::Always, 0x1234));
+        assert_eq!(cpu.pc, 0x1234);
+    }
+
+    #[test]
+    fn test_jp_nz() {
+        let mut cpu = CPU::default();
+        cpu.registers.f.zero = false;
+        cpu.execute(Instruction::JP(JumpCondition::NotZero, 0x1234));
+        assert_eq!(cpu.pc, 0x1234);
     }
 }

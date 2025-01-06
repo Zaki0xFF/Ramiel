@@ -47,6 +47,9 @@ pub enum Instruction {
     LDDBL(DoubleTarget),
     LDDBLA(DoubleTarget, ArithmeticTarget),
     ANDHL(),
+
+    //jump instructions
+    JP(JumpCondition, u16),
 }
 
 impl Instruction{
