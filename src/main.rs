@@ -20,6 +20,10 @@ impl MemoryBus {
     fn read_byte(&self, address: u16) -> u8 {
       self.memory[address as usize]
     }
+
+    fn write_byte(&mut self, address: u16, value: u8) {
+      self.memory[address as usize] = value;
+    }
 }
 
 #[allow(dead_code)]
@@ -115,14 +119,41 @@ impl CPU {
                 self.registers.set_hl(new_value);
             }
             Instruction::ADC(target) => {
-                let value = self.get_register_value(target);
-                let carry = if self.registers.f.carry { 1 } else { 0 };
-                let (new_value, did_overflow) = self.registers.a.overflowing_add(value + carry);
-                self.registers.f.zero = new_value == 0;
-                self.registers.f.subtract = false;
-                self.registers.f.carry = did_overflow;
-                self.registers.f.half_carry = (self.registers.a & 0xF) + (value & 0xF) + carry > 0xF;
-                self.registers.a = new_value.wrapping_add(if did_overflow { 1 } else { 0 });
+                match target {
+                    Target::Const8() => {
+                        let value = self.bus.read_byte(self.pc.wrapping_add(1));
+                        let carry = if self.registers.f.carry { 1 } else { 0 };
+                        let (new_value, did_overflow) = self.registers.a.overflowing_add(value + carry);
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.carry = did_overflow;
+                        self.registers.f.half_carry = (self.registers.a & 0xF) + (value & 0xF) + carry > 0xF;
+                        self.registers.a = new_value.wrapping_add(if did_overflow { 1 } else { 0 });
+                    }
+                    Target::Register(arithmetic_target) => {
+                        let value = self.get_register_value(arithmetic_target);
+                        let carry = if self.registers.f.carry { 1 } else { 0 };
+                        let (new_value, did_overflow) = self.registers.a.overflowing_add(value + carry);
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.carry = did_overflow;
+                        self.registers.f.half_carry = (self.registers.a & 0xF) + (value & 0xF) + carry > 0xF;
+                        self.registers.a = new_value.wrapping_add(if did_overflow { 1 } else { 0 });
+                    }
+                    Target::MemoryR16(_target) => {
+                        let hl_value = self.registers.get_hl();
+                        let value = self.bus.read_byte(hl_value);
+                        let carry = if self.registers.f.carry { 1 } else { 0 };
+                        let (result, carry1) = self.registers.a.overflowing_add(value);
+                        let (result, carry2) = result.overflowing_add(carry);
+                        self.registers.f.zero = result == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.carry = carry1 || carry2;
+                        self.registers.f.half_carry = (self.registers.a & 0xF) + (value & 0xF) + carry > 0xF;
+                        self.registers.a = result;
+                    }
+                    _ => { panic!("Invalid target for ADC instruction: {:?}", target); }
+                }
             }
             Instruction::SUB(target) => {
                 let value = self.get_register_value(target);
@@ -471,16 +502,7 @@ impl CPU {
                     DoubleTarget::HL => { self.registers.set_hl(value as u16); }
                     DoubleTarget::SP => { self.sp = value as u16; }
                 }
-            }
-            Instruction::ADCHL() => {
-                let value = self.bus.read_byte(self.pc.wrapping_add(1));
-                let (new_value, did_overflow) = self.registers.get_hl().overflowing_add(value as u16);
-                self.registers.f.zero = new_value == 0;
-                self.registers.f.subtract = false;
-                self.registers.f.carry = did_overflow;
-                self.registers.f.half_carry = (self.registers.get_hl() & 0xFFF) + (value as u16 & 0xFFF) > 0xFFF;
-                self.registers.set_hl(new_value);
-            }
+            },
             Instruction::NOP() => {}
             Instruction::STOP() => {unimplemented!("STOP instruction not implemented yet")},
             Instruction::DAA() => {

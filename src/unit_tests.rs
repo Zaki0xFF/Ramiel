@@ -30,9 +30,60 @@ mod instructions_unit {
         let mut cpu = CPU::default();
         cpu.registers.a = 3;
         cpu.registers.b = 255;
-        cpu.execute(Instruction::ADC(ArithmeticTarget::B));
+        cpu.execute(Instruction::ADC(Target::Register(ArithmeticTarget::B)));
         assert_eq!(cpu.registers.a, 3);
         assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn test_adc_a_hl_no_carry() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.a = 0x34;
+        cpu.registers.f.carry = false;
+
+        cpu.execute(Instruction::ADC(Target::MemoryR16(DoubleTarget::HL)));
+
+        assert_eq!(cpu.registers.a, 0x46);
+        assert!(!cpu.registers.f.zero);
+        assert!(!cpu.registers.f.subtract);
+        assert!(!cpu.registers.f.carry);
+        assert!(!cpu.registers.f.half_carry);
+    }
+
+    #[test]
+    fn test_adc_a_hl_with_carry() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.a = 0x34;
+        cpu.registers.f.carry = true;
+
+        cpu.execute(Instruction::ADC(Target::MemoryR16(DoubleTarget::HL)));
+
+        assert_eq!(cpu.registers.a, 0x47);
+        assert!(!cpu.registers.f.zero);
+        assert!(!cpu.registers.f.subtract);
+        assert!(!cpu.registers.f.carry);
+        assert!(!cpu.registers.f.half_carry);
+    }
+
+    #[test]
+    fn test_adc_a_hl_with_overflow() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0xFF);
+        cpu.registers.a = 0x01;
+        cpu.registers.f.carry = true;
+
+        cpu.execute(Instruction::ADC(Target::MemoryR16(DoubleTarget::HL)));
+
+        assert_eq!(cpu.registers.a, 0x01);
+        assert!(!cpu.registers.f.zero);
+        assert!(!cpu.registers.f.subtract);
+        assert!(cpu.registers.f.carry);
+        assert!(cpu.registers.f.half_carry);
     }
 
     #[test]

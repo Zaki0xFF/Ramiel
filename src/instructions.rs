@@ -2,7 +2,7 @@ use super::registers::*;
 #[derive(Clone, Copy, Debug)]
 pub enum Instruction {
     //u8 instructions
-    ADC(ArithmeticTarget),
+    ADC(Target),
     ADD(ArithmeticTarget),
     AND(ArithmeticTarget),
     CP(ArithmeticTarget),
@@ -40,7 +40,7 @@ pub enum Instruction {
     EI(),
 
     //u16 instructions
-    ADCHL(),
+
     ADDHL(DoubleTarget),
     INCDBL(DoubleTarget),
     DECDBL(DoubleTarget),
