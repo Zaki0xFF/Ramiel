@@ -9,7 +9,12 @@ mod instructions_unit {
         let mut cpu = CPU::default();
         cpu.registers.a = 1;
         cpu.registers.b = 2;
-        cpu.execute(Instruction::ADD(ArithmeticTarget::B));
+        cpu.execute(Instruction::ADD(Target::Register(ArithmeticTarget::A), Target::Register(ArithmeticTarget::B)));
+
+        // Debug prints
+        println!("Register A: {}", cpu.registers.a);
+        println!("Register B: {}", cpu.registers.b);
+
         assert_eq!(cpu.registers.a, 3);
     }
 
@@ -20,7 +25,7 @@ mod instructions_unit {
         cpu.registers.l = 0x34;
         cpu.registers.b = 0x56;
         cpu.registers.c = 0x78;
-        cpu.execute(Instruction::ADDHL(DoubleTarget::BC));
+        cpu.execute(Instruction::ADD(Target::Register16(DoubleTarget::HL), Target::Register16(DoubleTarget::BC)));
         assert_eq!(cpu.registers.h, 0x68);
         assert_eq!(cpu.registers.l, 0xAC);
     }
