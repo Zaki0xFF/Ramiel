@@ -50,6 +50,8 @@ pub enum Target {
     Const8(),
     Const16(),
     MemoryConst16(),
+    OffsetE8(),
+    IndexU3(),
 }
 
 #[derive(Clone, Copy, Debug)]

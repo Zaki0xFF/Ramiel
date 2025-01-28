@@ -113,6 +113,15 @@ impl CPU {
                             DoubleTarget::SP => { self.sp }
                         } as u16;
                     }
+                    Target::MemoryR16(target) => {
+                        let hl_value = match target {
+                            DoubleTarget::BC => self.registers.get_bc(),
+                            DoubleTarget::DE => self.registers.get_de(),
+                            DoubleTarget::HL => self.registers.get_hl(),
+                            DoubleTarget::SP => self.sp,
+                        };
+                        value = self.bus.read_byte(hl_value) as u16;
+                    }
                     _ => { panic!("Invalid target for ADD instruction: {:?}", target); }
                 }
                 match target {
@@ -159,22 +168,6 @@ impl CPU {
                             DoubleTarget::HL => { self.registers.set_hl(new_value); }
                             DoubleTarget::SP => { self.sp = new_value; }
                         }
-                    }
-                    Target::MemoryR16(target) => {
-                        let hl_value = match target {
-                            DoubleTarget::BC => self.registers.get_bc(),
-                            DoubleTarget::DE => self.registers.get_de(),
-                            DoubleTarget::HL => self.registers.get_hl(),
-                            DoubleTarget::SP => self.sp,
-                        };
-                        let value = self.bus.read_byte(hl_value);
-                        let (result, carry1) = self.registers.a.overflowing_add(value);
-                        let (result, carry2) = result.overflowing_add(if self.registers.f.carry { 1 } else { 0 });
-                        self.registers.f.zero = result == 0;
-                        self.registers.f.subtract = false;
-                        self.registers.f.carry = carry1 || carry2;
-                        self.registers.f.half_carry = (self.registers.a & 0xF) + (value & 0xF) + (if self.registers.f.carry { 1 } else { 0 }) > 0xF;
-                        self.registers.a = result;
                     }
                     _ => { panic!("Invalid source for ADD instruction: {:?}", source); }
                 }
@@ -272,13 +265,56 @@ impl CPU {
             }
             Instruction::INC(target) => {
                 match target {
-                    ArithmeticTarget::A => { self.registers.a += 1;}
-                    ArithmeticTarget::B => { self.registers.b += 1;}
-                    ArithmeticTarget::C => { self.registers.c += 1;}
-                    ArithmeticTarget::D => { self.registers.d += 1;}
-                    ArithmeticTarget::E => { self.registers.e += 1;}
-                    ArithmeticTarget::H => { self.registers.h += 1;}
-                    ArithmeticTarget::L => { self.registers.l += 1;}
+                    Target::Register(arithmetic_target) => {
+                        let mut register = self.get_register_value(arithmetic_target);
+                        let (new_value, did_overflow) = register.overflowing_add(1);
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.half_carry = (register & 0xF) == 0xF;
+                        match arithmetic_target {
+                            ArithmeticTarget::A => { self.registers.a = new_value; }
+                            ArithmeticTarget::B => { self.registers.b = new_value; }
+                            ArithmeticTarget::C => { self.registers.c = new_value; }
+                            ArithmeticTarget::D => { self.registers.d = new_value; }
+                            ArithmeticTarget::E => { self.registers.e = new_value; }
+                            ArithmeticTarget::H => { self.registers.h = new_value; }
+                            ArithmeticTarget::L => { self.registers.l = new_value; }
+                        }
+                    }
+                    Target::Register16(target) => {
+                        let r16_value: u16 = match target{
+                            DoubleTarget::BC => { self.registers.get_bc() }
+                            DoubleTarget::DE => { self.registers.get_de() }
+                            DoubleTarget::HL => { self.registers.get_hl() }
+                            DoubleTarget::SP => { self.sp }
+                        };
+                        let (new_value, did_overflow) = r16_value.overflowing_add(1);
+                        self.registers.f.subtract = false;
+                        self.registers.f.carry = did_overflow;
+                        self.registers.f.half_carry = (r16_value & 0xFFF) == 0xFFF;
+                        match target{
+                            DoubleTarget::BC => { self.registers.set_bc(new_value); }
+                            DoubleTarget::DE => { self.registers.set_de(new_value); }
+                            DoubleTarget::HL => { self.registers.set_hl(new_value); }
+                            DoubleTarget::SP => { self.sp = new_value; }
+                        }
+                    }
+                    Target::MemoryR16(target) => {
+                        let r16_value = match target {
+                            DoubleTarget::BC => self.registers.get_bc(),
+                            DoubleTarget::DE => self.registers.get_de(),
+                            DoubleTarget::HL => self.registers.get_hl(),
+                            DoubleTarget::SP => self.sp,
+                        };
+                        let value = self.bus.read_byte(r16_value);
+                        let (result, carry1) = value.overflowing_add(1);
+                        self.registers.f.zero = result == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.carry = carry1;
+                        self.registers.f.half_carry = (value & 0xF) == 0xF;
+                        self.bus.write_byte(r16_value, result);
+                    }
+                    _ => { panic!("Invalid target for INC instruction: {:?}", target); }
                 }
             }
             Instruction::INCDBL(target) => {
@@ -290,43 +326,20 @@ impl CPU {
                 }
             }
             Instruction::DEC(target) => {
-                match target {
-                    ArithmeticTarget::A => { 
-                        self.registers.a -= 1;
-                        self.registers.f.zero = self.registers.a == 0;
-                        self.registers.f.half_carry = (self.registers.a & 0xF) == 0;
-                    }
-                    ArithmeticTarget::B => { 
-                        self.registers.b -= 1;
-                        self.registers.f.zero = self.registers.b == 0;
-                        self.registers.f.half_carry = (self.registers.b & 0xF) == 0;
-                    }
-                    ArithmeticTarget::C => {
-                         self.registers.c -= 1;
-                         self.registers.f.zero = self.registers.c == 0;
-                         self.registers.f.half_carry = (self.registers.c & 0xF) == 0;
-                    }
-                    ArithmeticTarget::D => { 
-                        self.registers.d -= 1;
-                        self.registers.f.zero = self.registers.d == 0;
-                        self.registers.f.half_carry = (self.registers.d & 0xF) == 0;
-                    }
-                    ArithmeticTarget::E => { 
-                        self.registers.e -= 1;
-                        self.registers.f.zero = self.registers.e == 0;
-                        self.registers.f.half_carry = (self.registers.e & 0xF) == 0;
-                    }
-                    ArithmeticTarget::H => { 
-                        self.registers.h -= 1;
-                        self.registers.f.zero = self.registers.h == 0;
-                        self.registers.f.half_carry = (self.registers.h & 0xF) == 0;
-                    }
-                    ArithmeticTarget::L => { 
-                        self.registers.l -= 1;
-                        self.registers.f.zero = self.registers.l == 0;
-                        self.registers.f.half_carry = (self.registers.l & 0xF) == 0;}  
-                    }
+                let mut register = self.get_register_value(target);
+                let (new_value, did_overflow) = register.overflowing_sub(1);
+                self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = true;
+                self.registers.f.half_carry = (register & 0xF) == 0;
+                match target {
+                    ArithmeticTarget::A => { self.registers.a = new_value; }
+                    ArithmeticTarget::B => { self.registers.b = new_value; }
+                    ArithmeticTarget::C => { self.registers.c = new_value; }
+                    ArithmeticTarget::D => { self.registers.d = new_value; }
+                    ArithmeticTarget::E => { self.registers.e = new_value; }
+                    ArithmeticTarget::H => { self.registers.h = new_value; }
+                    ArithmeticTarget::L => { self.registers.l = new_value; }
+                }
             }
             Instruction::DECDBL(target) => {
                 match target {
@@ -513,6 +526,7 @@ impl CPU {
                         let address = self.bus.read_byte(self.pc.wrapping_add(1)); // Probably wrong
                         value = self.bus.read_byte(address as u16) as u16;
                     },
+                    _ => { panic!("Invalid source for LD instruction: {:?}", source); }
                 }
                 match target {
                     Target::Register(arithmetic_target) => {
