@@ -56,7 +56,7 @@ mod instructions_unit {
         let mut cpu = CPU::default();
         cpu.registers.a = 0b10101010;
         cpu.registers.b = 0b11001100;
-        cpu.execute(Instruction::AND(ArithmeticTarget::B));
+        cpu.execute(Instruction::AND(Target::Register(ArithmeticTarget::A),Target::Register(ArithmeticTarget::B)));
         assert_eq!(cpu.registers.a, 0b10001000);
     }
 
@@ -66,7 +66,7 @@ mod instructions_unit {
         cpu.registers.a = 0b10101010;
         cpu.registers.set_hl(0x1234);
         cpu.bus.write_byte(0x1234, 0b11001100);
-        cpu.execute(Instruction::ANDHL());
+        cpu.execute(Instruction::AND(Target::Register(ArithmeticTarget::A),Target::MemoryR16(DoubleTarget::HL)));
         assert_eq!(cpu.registers.a, 0b10001000);
     }
 
@@ -135,7 +135,16 @@ mod instructions_unit {
     fn bit(){ //BIT r8
         let mut cpu = CPU::default();
         cpu.registers.a = 0b00001000;
-        cpu.execute(Instruction::BIT(3,ArithmeticTarget::A));
+        cpu.execute(Instruction::BIT(3,Target::Register(ArithmeticTarget::A)));
+        assert!(!cpu.registers.f.zero);
+    }
+
+    #[test]
+    fn bit_hl(){ //BIT (HL)
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b00001000);
+        cpu.execute(Instruction::BIT(3,Target::MemoryR16(DoubleTarget::HL)));
         assert!(!cpu.registers.f.zero);
     }
 
@@ -183,10 +192,27 @@ mod instructions_unit {
     fn dec() {
         let mut cpu = CPU::default();
         cpu.registers.a = 0x01;
-        cpu.execute(Instruction::DEC(ArithmeticTarget::A));
+        cpu.execute(Instruction::DEC(Target::Register(ArithmeticTarget::A)));
         assert_eq!(cpu.registers.a, 0x00);
         assert!(cpu.registers.f.zero);
         assert!(cpu.registers.f.subtract);
+    }
+
+    #[test]
+    fn dec_r16() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_bc(0x1234);
+        cpu.execute(Instruction::DEC(Target::Register16(DoubleTarget::BC)));
+        assert_eq!(cpu.registers.get_bc(), 0x1233);
+    }
+
+    #[test]
+    fn dec_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.execute(Instruction::DEC(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0x11);
     }
 
     #[test]
@@ -249,6 +275,33 @@ mod instructions_unit {
     }
 
     #[test]
+    fn ld_hl() { // LD (HL), r8
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0x01;
+        cpu.registers.set_hl(0x1234);
+        cpu.execute(Instruction::LD(Target::MemoryR16(DoubleTarget::HL), Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0x01);
+    }
+
+    #[test]
+    fn ld_r8_hl() { // LD r8, (HL)
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0x01);
+        cpu.execute(Instruction::LD(Target::Register(ArithmeticTarget::A), Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.registers.a, 0x01);
+    }
+
+    #[test]
+    fn ld_a_r16() { // LD A, (r16)
+        let mut cpu = CPU::default();
+        cpu.registers.set_bc(0x1234);
+        cpu.bus.write_byte(0x1234, 0x01);
+        cpu.execute(Instruction::LD(Target::Register(ArithmeticTarget::A), Target::MemoryR16(DoubleTarget::BC)));
+        assert_eq!(cpu.registers.a, 0x01);
+    }
+
+    #[test]
     fn xor(){
         let mut cpu = CPU::default();
         cpu.registers.a = 0b10101010;
@@ -256,6 +309,45 @@ mod instructions_unit {
         cpu.execute(Instruction::XOR(ArithmeticTarget::B));
         assert_eq!(cpu.registers.a, 0b01100110);
     }
+
+    #[test]
+    fn rla() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10000000;
+        cpu.registers.f.carry = true;
+        cpu.execute(Instruction::RLA());
+        assert_eq!(cpu.registers.a, 0b00000001);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rlca() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10000000;
+        cpu.execute(Instruction::RLCA());
+        assert_eq!(cpu.registers.a, 0b00000001);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rra() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b00000001;
+        cpu.registers.f.carry = true;
+        cpu.execute(Instruction::RRA());
+        assert_eq!(cpu.registers.a, 0b10000000);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rrca() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b00000001;
+        cpu.execute(Instruction::RRCA());
+        assert_eq!(cpu.registers.a, 0b10000000);
+        assert!(cpu.registers.f.carry);
+    }
+
     #[test]
     fn test_jp() {
         let mut cpu = CPU::default();
