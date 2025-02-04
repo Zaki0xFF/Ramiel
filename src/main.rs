@@ -210,13 +210,33 @@ impl CPU {
                 }
             }
             Instruction::SUB(target) => {
-                let value = self.get_register_value(target);
-                let (new_value, did_overflow) = self.registers.a.overflowing_sub(value);
-                self.registers.f.zero = new_value == 0;
-                self.registers.f.subtract = true;
-                self.registers.f.carry = did_overflow;
-                self.registers.f.half_carry = (self.registers.a & 0xF) < (value & 0xF);
-                self.registers.a = new_value;
+                match target {
+                    Target::Register(arithmetic_target) => {
+                        let value = self.get_register_value(arithmetic_target);
+                        let (new_value, did_overflow) = self.registers.a.overflowing_sub(value);
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.carry = did_overflow;
+                        self.registers.f.subtract = true;
+                        self.registers.f.half_carry = (self.registers.a & 0xF) < (value & 0xF);
+                        self.registers.a = new_value;
+                    }
+                    Target::MemoryR16(target) => {
+                        let hl_value = match target {
+                            DoubleTarget::BC => self.registers.get_bc(),
+                            DoubleTarget::DE => self.registers.get_de(),
+                            DoubleTarget::HL => self.registers.get_hl(),
+                            DoubleTarget::SP => self.sp,
+                        };
+                        let value = self.bus.read_byte(hl_value);
+                        let (new_value, did_overflow) = self.registers.a.overflowing_sub(value);
+                        self.registers.f.carry = did_overflow;
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.subtract = true;
+                        self.registers.f.half_carry = (self.registers.a & 0xF) < (value & 0xF);
+                        self.registers.a = new_value;
+                    }
+                    _ => { panic!("Invalid target for SUB instruction: {:?}", target);}
+                }
             }
             Instruction::SBC(target) => {
                 let value = self.get_register_value(target);
@@ -247,7 +267,8 @@ impl CPU {
                 }
                 match target {
                     Target::Register(arithmetic_target) => {
-                        let new_value = self.registers.a & value;
+                        let val = self.get_register_value(arithmetic_target);
+                        let new_value = val & value;
                         self.registers.f.zero = new_value == 0;
                         self.registers.f.subtract = false;
                         self.registers.f.half_carry = true;
@@ -265,23 +286,81 @@ impl CPU {
                     _ => { panic!("Invalid target for AND instruction: {:?}", target); }
                 }
             }
-            Instruction::OR(target) => {
-                let value = self.get_register_value(target);
-                let new_value = self.registers.a | value;
-                self.registers.f.zero = new_value == 0;
-                self.registers.f.subtract = false;
-                self.registers.f.half_carry = false;
-                self.registers.f.carry = false;
-                self.registers.a = new_value;
+            Instruction::OR(target, source) => {
+                let mut value = 0;
+                match source{
+                    Target::Register(arithmetic_target) => {
+                        value = self.get_register_value(arithmetic_target);
+                    }
+                    Target::MemoryR16(target) => {
+                        let hl_value = match target {
+                            DoubleTarget::BC => self.registers.get_bc(),
+                            DoubleTarget::DE => self.registers.get_de(),
+                            DoubleTarget::HL => self.registers.get_hl(),
+                            DoubleTarget::SP => self.sp,
+                        };
+                        value = self.bus.read_byte(hl_value);
+                    }
+                    _ => { panic!("Invalid source for OR instruction: {:?}", source); }
+                }
+                match target {
+                    Target::Register(arithmetic_target) => {
+                        let val = self.get_register_value(arithmetic_target);
+                        let new_value = val | value;
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.half_carry = false;
+                        self.registers.f.carry = false;
+                        match arithmetic_target {
+                            ArithmeticTarget::A => { self.registers.a = new_value; }
+                            ArithmeticTarget::B => { self.registers.b = new_value; }
+                            ArithmeticTarget::C => { self.registers.c = new_value; }
+                            ArithmeticTarget::D => { self.registers.d = new_value; }
+                            ArithmeticTarget::E => { self.registers.e = new_value; }
+                            ArithmeticTarget::H => { self.registers.h = new_value; }
+                            ArithmeticTarget::L => { self.registers.l = new_value; }
+                        }
+                    }
+                    _ => { panic!("Invalid target for OR instruction: {:?}", target); }
+                }
             }
-            Instruction::XOR(target) => {
-                let value = self.get_register_value(target);
-                let new_value = self.registers.a ^ value;
-                self.registers.f.zero = new_value == 0;
-                self.registers.f.subtract = false;
-                self.registers.f.half_carry = false;
-                self.registers.f.carry = false;
-                self.registers.a = new_value;
+            Instruction::XOR(target, source) => {
+                let mut value = 0;
+                match source{
+                    Target::Register(arithmetic_target) => {
+                        value = self.get_register_value(arithmetic_target);
+                    }
+                    Target::MemoryR16(target) => {
+                        let hl_value = match target {
+                            DoubleTarget::BC => self.registers.get_bc(),
+                            DoubleTarget::DE => self.registers.get_de(),
+                            DoubleTarget::HL => self.registers.get_hl(),
+                            DoubleTarget::SP => self.sp,
+                        };
+                        value = self.bus.read_byte(hl_value);
+                    }
+                    _ => { panic!("Invalid source for XOR instruction: {:?}", source); }
+                }
+                match target {
+                    Target::Register(arithmetic_target) => {
+                        let val = self.get_register_value(arithmetic_target);
+                        let new_value = val ^ value;
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.half_carry = false;
+                        self.registers.f.carry = false;
+                        match arithmetic_target {
+                            ArithmeticTarget::A => { self.registers.a = new_value; }
+                            ArithmeticTarget::B => { self.registers.b = new_value; }
+                            ArithmeticTarget::C => { self.registers.c = new_value; }
+                            ArithmeticTarget::D => { self.registers.d = new_value; }
+                            ArithmeticTarget::E => { self.registers.e = new_value; }
+                            ArithmeticTarget::H => { self.registers.h = new_value; }
+                            ArithmeticTarget::L => { self.registers.l = new_value; }
+                        }
+                    }
+                    _ => { panic!("Invalid target for XOR instruction: {:?}", target); }
+                }
             }
             Instruction::CP(target) => {
                 let value = self.get_register_value(target);
@@ -612,7 +691,6 @@ impl CPU {
                         let address = self.bus.read_byte(self.pc.wrapping_add(1)); // Probably wrong
                         value = self.bus.read_byte(address as u16) as u16;
                     },
-                    _ => { panic!("Invalid source for LD instruction: {:?}", source); }
                 }
                 match target {
                     Target::Register(arithmetic_target) => {
@@ -705,7 +783,6 @@ impl CPU {
                     return self.pc.wrapping_add(3);  // Skip over the instruction (1 byte) and operand (2 bytes)
                 }
             }
-            _ => { /* TODO: support more instructions */ unimplemented!("not implemented yet cannot execute") }
         }
         print!("{:?}", &instruction);
         self.pc.wrapping_add(1)

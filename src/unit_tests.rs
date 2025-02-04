@@ -226,6 +226,29 @@ mod instructions_unit {
     }
 
     #[test]
+    fn sub() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0x02;
+        cpu.registers.b = 0x01;
+        cpu.execute(Instruction::SUB(Target::Register(ArithmeticTarget::B)));
+        assert_eq!(cpu.registers.a, 0x01);
+        assert!(!cpu.registers.f.zero);
+        assert!(cpu.registers.f.subtract);
+    }
+
+    #[test]
+    fn sub_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0x02;
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0x01);
+        cpu.execute(Instruction::SUB(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.registers.a, 0x01);
+        assert!(!cpu.registers.f.zero);
+        assert!(cpu.registers.f.subtract);
+    }
+
+    #[test]
     fn inc_memhl() {
         let mut cpu = CPU::default();
         cpu.registers.set_hl(0x1234);
@@ -306,8 +329,37 @@ mod instructions_unit {
         let mut cpu = CPU::default();
         cpu.registers.a = 0b10101010;
         cpu.registers.b = 0b11001100;
-        cpu.execute(Instruction::XOR(ArithmeticTarget::B));
+        cpu.execute(Instruction::XOR(Target::Register(ArithmeticTarget::A), Target::Register(ArithmeticTarget::B)));
         assert_eq!(cpu.registers.a, 0b01100110);
+    }
+
+    #[test]
+    fn xor_hl(){
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10101010;
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b11001100);
+        cpu.execute(Instruction::XOR(Target::Register(ArithmeticTarget::A), Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.registers.a, 0b01100110);
+    }
+
+    #[test]
+    fn or_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10101010;
+        cpu.registers.b = 0b11001100;
+        cpu.execute(Instruction::OR(Target::Register(ArithmeticTarget::A), Target::Register(ArithmeticTarget::B)));
+        assert_eq!(cpu.registers.a, 0b11101110);
+    } 
+
+    #[test]
+    fn or_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10101010;
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b11001100);
+        cpu.execute(Instruction::OR(Target::Register(ArithmeticTarget::A), Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.registers.a, 0b11101110);
     }
 
     #[test]
