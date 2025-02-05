@@ -73,7 +73,61 @@ impl CPU {
         }
     }
 
-    fn jump(&mut self, address: u16) {
+    fn get_source_value(&self, source: Target) -> u16 {
+        let value: u16 = match source {
+            Target::Register(arithmetic_target) => {
+                match arithmetic_target {
+                    ArithmeticTarget::A => { self.registers.a as u16 }
+                    ArithmeticTarget::B => { self.registers.b as u16}
+                    ArithmeticTarget::C => { self.registers.c as u16}
+                    ArithmeticTarget::D => { self.registers.d as u16}
+                    ArithmeticTarget::E => { self.registers.e as u16}
+                    ArithmeticTarget::H => { self.registers.h as u16}
+                    ArithmeticTarget::L => { self.registers.l as u16}
+                }
+            },
+            Target::Register16(double_target) => {
+                match double_target{
+                    DoubleTarget::BC => self.registers.get_bc(),
+                    DoubleTarget::DE => self.registers.get_de(),
+                    DoubleTarget::HL => self.registers.get_hl(),
+                    DoubleTarget::SP => self.sp,
+                }
+            },
+            Target::MemoryR8(arithmetic_target) => {
+                match arithmetic_target {
+                    ArithmeticTarget::A => { self.bus.memory[self.registers.a as usize] as u16 }
+                    ArithmeticTarget::B => { self.bus.memory[self.registers.b as usize] as u16}
+                    ArithmeticTarget::C => { self.bus.memory[self.registers.c as usize] as u16}
+                    ArithmeticTarget::D => { self.bus.memory[self.registers.d as usize] as u16}
+                    ArithmeticTarget::E => { self.bus.memory[self.registers.e as usize] as u16}
+                    ArithmeticTarget::H => { self.bus.memory[self.registers.h as usize] as u16}
+                    ArithmeticTarget::L => { self.bus.memory[self.registers.l as usize] as u16}
+                }
+            },
+            Target::MemoryR16(double_target) => {
+                match double_target {
+                    DoubleTarget::BC => { self.bus.memory[self.registers.get_bc() as usize] as u16 }
+                    DoubleTarget::DE => { self.bus.memory[self.registers.get_de() as usize] as u16}
+                    DoubleTarget::HL => { self.bus.memory[self.registers.get_hl() as usize] as u16}
+                    DoubleTarget::SP => { self.bus.memory[self.sp as usize] as u16}
+                }
+            },
+            Target::Const8() => {
+                self.bus.read_byte(self.pc.wrapping_add(1)) as u16
+            },
+            Target::Const16() => {
+                self.bus.read_byte(self.pc.wrapping_add(1)) as u16 //Probably wrong
+            },
+            Target::MemoryConst16() => {
+                let address = self.bus.read_byte(self.pc.wrapping_add(1)); // Probably wrong
+                self.bus.read_byte(address as u16) as u16
+            },
+        };
+        value
+    }
+
+    fn _jump(&mut self, address: u16) {
         self.pc = address;
     }
 
@@ -97,33 +151,7 @@ impl CPU {
     fn execute(&mut self, instruction: Instruction) -> u16 {
         match instruction {
             Instruction::ADD(target, source) => {
-                let mut value: u16 = 0;
-                match source {
-                    Target::Register(arithmetic_target) => {
-                        value = self.get_register_value(arithmetic_target) as u16;
-                    }
-                    Target::Const8() => {
-                        value = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
-                    }
-                    Target::Register16(target) => { // TODO: FIX THIS
-                        value = match target{
-                            DoubleTarget::BC => { self.registers.get_bc() }
-                            DoubleTarget::DE => { self.registers.get_de() }
-                            DoubleTarget::HL => { self.registers.get_hl() }
-                            DoubleTarget::SP => { self.sp }
-                        } as u16;
-                    }
-                    Target::MemoryR16(target) => {
-                        let hl_value = match target {
-                            DoubleTarget::BC => self.registers.get_bc(),
-                            DoubleTarget::DE => self.registers.get_de(),
-                            DoubleTarget::HL => self.registers.get_hl(),
-                            DoubleTarget::SP => self.sp,
-                        };
-                        value = self.bus.read_byte(hl_value) as u16;
-                    }
-                    _ => { panic!("Invalid target for ADD instruction: {:?}", target); }
-                }
+                let value: u16 = self.get_source_value(source);
                 match target {
                     Target::Register(arithmetic_target) => {
                         let value = value as u8;
@@ -249,26 +277,11 @@ impl CPU {
                 self.registers.a = new_value;
             }
             Instruction::AND(target, source) => {
-                let mut value = 0;
-                match source{
-                    Target::Register(arithmetic_target) => {
-                        value = self.get_register_value(arithmetic_target);
-                    }
-                    Target::MemoryR16(target) => {
-                        let hl_value = match target {
-                            DoubleTarget::BC => self.registers.get_bc(),
-                            DoubleTarget::DE => self.registers.get_de(),
-                            DoubleTarget::HL => self.registers.get_hl(),
-                            DoubleTarget::SP => self.sp,
-                        };
-                        value = self.bus.read_byte(hl_value);
-                    }
-                    _ => { panic!("Invalid source for AND instruction: {:?}", source); }
-                }
+                let value = self.get_source_value(source);
                 match target {
                     Target::Register(arithmetic_target) => {
                         let val = self.get_register_value(arithmetic_target);
-                        let new_value = val & value;
+                        let new_value = val & value as u8;
                         self.registers.f.zero = new_value == 0;
                         self.registers.f.subtract = false;
                         self.registers.f.half_carry = true;
@@ -287,26 +300,11 @@ impl CPU {
                 }
             }
             Instruction::OR(target, source) => {
-                let mut value = 0;
-                match source{
-                    Target::Register(arithmetic_target) => {
-                        value = self.get_register_value(arithmetic_target);
-                    }
-                    Target::MemoryR16(target) => {
-                        let hl_value = match target {
-                            DoubleTarget::BC => self.registers.get_bc(),
-                            DoubleTarget::DE => self.registers.get_de(),
-                            DoubleTarget::HL => self.registers.get_hl(),
-                            DoubleTarget::SP => self.sp,
-                        };
-                        value = self.bus.read_byte(hl_value);
-                    }
-                    _ => { panic!("Invalid source for OR instruction: {:?}", source); }
-                }
+                let value = self.get_source_value(source);
                 match target {
                     Target::Register(arithmetic_target) => {
                         let val = self.get_register_value(arithmetic_target);
-                        let new_value = val | value;
+                        let new_value = val | value as u8;
                         self.registers.f.zero = new_value == 0;
                         self.registers.f.subtract = false;
                         self.registers.f.half_carry = false;
@@ -325,26 +323,11 @@ impl CPU {
                 }
             }
             Instruction::XOR(target, source) => {
-                let mut value = 0;
-                match source{
-                    Target::Register(arithmetic_target) => {
-                        value = self.get_register_value(arithmetic_target);
-                    }
-                    Target::MemoryR16(target) => {
-                        let hl_value = match target {
-                            DoubleTarget::BC => self.registers.get_bc(),
-                            DoubleTarget::DE => self.registers.get_de(),
-                            DoubleTarget::HL => self.registers.get_hl(),
-                            DoubleTarget::SP => self.sp,
-                        };
-                        value = self.bus.read_byte(hl_value);
-                    }
-                    _ => { panic!("Invalid source for XOR instruction: {:?}", source); }
-                }
+                let value = self.get_source_value(source);
                 match target {
                     Target::Register(arithmetic_target) => {
                         let val = self.get_register_value(arithmetic_target);
-                        let new_value = val ^ value;
+                        let new_value = val ^ value as u8;
                         self.registers.f.zero = new_value == 0;
                         self.registers.f.subtract = false;
                         self.registers.f.half_carry = false;
@@ -373,7 +356,7 @@ impl CPU {
             Instruction::INC(target) => {
                 match target {
                     Target::Register(arithmetic_target) => {
-                        let mut register = self.get_register_value(arithmetic_target);
+                        let register = self.get_register_value(arithmetic_target);
                         let (new_value, did_overflow) = register.overflowing_add(1);
                         self.registers.f.zero = new_value == 0;
                         self.registers.f.subtract = false;
@@ -641,57 +624,7 @@ impl CPU {
                 self.registers.f.carry = false;
             }
             Instruction::LD(target, source) => {
-                let mut value: u16 = 0;
-                match source {
-                    Target::Register(arithmetic_target) => {
-                        value = match arithmetic_target {
-                            ArithmeticTarget::A => { self.registers.a }
-                            ArithmeticTarget::B => { self.registers.b }
-                            ArithmeticTarget::C => { self.registers.c }
-                            ArithmeticTarget::D => { self.registers.d }
-                            ArithmeticTarget::E => { self.registers.e }
-                            ArithmeticTarget::H => { self.registers.h }
-                            ArithmeticTarget::L => { self.registers.l }
-                        } as u16;
-                    },
-                    Target::Register16(double_target) => {
-                        let value = match double_target{
-                            DoubleTarget::BC => { value = self.registers.get_bc(); }
-                            DoubleTarget::DE => { value = self.registers.get_de(); }
-                            DoubleTarget::HL => { value = self.registers.get_hl(); }
-                            DoubleTarget::SP => { value = self.sp; }
-                        };
-                    },
-                    Target::MemoryR8(arithmetic_target) => {
-                        value = match arithmetic_target {
-                            ArithmeticTarget::A => { self.bus.memory[self.registers.a as usize] }
-                            ArithmeticTarget::B => { self.bus.memory[self.registers.b as usize] }
-                            ArithmeticTarget::C => { self.bus.memory[self.registers.c as usize] }
-                            ArithmeticTarget::D => { self.bus.memory[self.registers.d as usize] }
-                            ArithmeticTarget::E => { self.bus.memory[self.registers.e as usize] }
-                            ArithmeticTarget::H => { self.bus.memory[self.registers.h as usize] }
-                            ArithmeticTarget::L => { self.bus.memory[self.registers.l as usize] }
-                        } as u16;
-                    },
-                    Target::MemoryR16(double_target) => {
-                        value = match double_target {
-                            DoubleTarget::BC => { self.bus.memory[self.registers.get_bc() as usize] }
-                            DoubleTarget::DE => { self.bus.memory[self.registers.get_de() as usize] }
-                            DoubleTarget::HL => { self.bus.memory[self.registers.get_hl() as usize] }
-                            DoubleTarget::SP => { self.bus.memory[self.sp as usize] }
-                        } as u16;
-                    },
-                    Target::Const8() => {
-                        value = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
-                    },
-                    Target::Const16() => {
-                        value = self.bus.read_byte(self.pc.wrapping_add(1)) as u16; //Probably wrong
-                    },
-                    Target::MemoryConst16() => {
-                        let address = self.bus.read_byte(self.pc.wrapping_add(1)); // Probably wrong
-                        value = self.bus.read_byte(address as u16) as u16;
-                    },
-                }
+                let value: u16 = self.get_source_value(source);
                 match target {
                     Target::Register(arithmetic_target) => {
                         match arithmetic_target {
