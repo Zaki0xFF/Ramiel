@@ -13,16 +13,15 @@ pub enum Instruction {
     INC(Target),
     DEC(Target),
     BIT(u8, Target),
-    RESET(ArithmeticTarget),
-    SET(u8, ArithmeticTarget),
-    SRL(ArithmeticTarget),
-    RR(ArithmeticTarget),
-    RL(ArithmeticTarget),
-    RRC(ArithmeticTarget),
-    RLC(ArithmeticTarget),
-    SRA(ArithmeticTarget),
-    SLA(ArithmeticTarget),
-    SWAP(ArithmeticTarget),
+    SET(u8, Target),
+    SRL(Target),
+    RR(Target),
+    RL(Target),
+    RRC(Target),
+    RLC(Target),
+    SRA(Target),
+    SLA(Target),
+    SWAP(Target),
     LD(Target, Target),
 
     //No target instructions
@@ -69,7 +68,7 @@ impl Instruction {
                 Target::Register(ArithmeticTarget::B),
                 Target::Const8(),
             )),
-            0x07 => Some(Instruction::RLC(ArithmeticTarget::A)),
+            0x07 => Some(Instruction::RLC(Target::Register(ArithmeticTarget::A))),
             0x08 => {
                 unimplemented!("Instruction not implemented yet: {:#X}", byte)
             }
@@ -86,7 +85,7 @@ impl Instruction {
             0x0E => {
                 unimplemented!("Instruction not implemented yet: {:#X}", byte)
             }
-            0x0F => Some(Instruction::RRC(ArithmeticTarget::A)),
+            0x0F => Some(Instruction::RRC(Target::Register(ArithmeticTarget::A))),
 
             0x10 => Some(Instruction::STOP()),
             0x11 => {
@@ -101,7 +100,7 @@ impl Instruction {
             0x16 => {
                 unimplemented!("Instruction not implemented yet: {:#X}", byte)
             }
-            0x17 => Some(Instruction::RL(ArithmeticTarget::A)),
+            0x17 => Some(Instruction::RL(Target::Register(ArithmeticTarget::A))),
             0x18 => {
                 unimplemented!("Instruction not implemented yet: {:#X}", byte)
             }
@@ -118,7 +117,7 @@ impl Instruction {
             0x1E => {
                 unimplemented!("Instruction not implemented yet: {:#X}", byte)
             }
-            0x1F => Some(Instruction::RR(ArithmeticTarget::A)),
+            0x1F => Some(Instruction::RR(Target::Register(ArithmeticTarget::A))),
 
             0x20 => {
                 unimplemented!("Instruction not implemented yet: {:#X}", byte)

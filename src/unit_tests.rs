@@ -138,6 +138,63 @@ mod instructions_unit {
     }
 
     #[test]
+    fn srl_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10000000;
+        cpu.execute(Instruction::SRL(Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.a, 0b01000000);
+        assert!(!cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn sra_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10000000;
+        cpu.execute(Instruction::SRA(Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.a, 0b11000000);
+        assert!(!cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn sra_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b10000000);
+        cpu.execute(Instruction::SRA(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0b11000000);
+        assert!(!cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn sla_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10000000;
+        cpu.execute(Instruction::SLA(Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.a, 0b00000000);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn sla_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b10000000);
+        cpu.execute(Instruction::SLA(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0b00000000);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn srl_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b10000000);
+        cpu.execute(Instruction::SRL(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0b01000000);
+        assert!(!cpu.registers.f.carry);
+    }
+
+    #[test]
     fn test_adc_a_hl_with_overflow() {
         let mut cpu = CPU::default();
         cpu.registers.set_hl(0x1234);
@@ -471,11 +528,89 @@ mod instructions_unit {
     }
 
     #[test]
+    fn rl_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10000000;
+        cpu.execute(Instruction::RL(Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.a, 0b00000000);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rl_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b10000000);
+        cpu.execute(Instruction::RL(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0b00000000);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rlc_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b10000000;
+        cpu.execute(Instruction::RLC(Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.a, 0b00000001);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rlc_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b10000000);
+        cpu.execute(Instruction::RLC(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0b00000001);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
     fn rlca() {
         let mut cpu = CPU::default();
         cpu.registers.a = 0b10000000;
         cpu.execute(Instruction::RLCA());
         assert_eq!(cpu.registers.a, 0b00000001);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rr_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b00000001;
+        cpu.registers.f.carry = true;
+        cpu.execute(Instruction::RR(Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.a, 0b10000000);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rr_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b00000001);
+        cpu.registers.f.carry = true;
+        cpu.execute(Instruction::RR(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0b10000000);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rrc_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b00000001;
+        cpu.execute(Instruction::RRC(Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.a, 0b10000000);
+        assert!(cpu.registers.f.carry);
+    }
+
+    #[test]
+    fn rrc_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b00000001);
+        cpu.execute(Instruction::RRC(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0b10000000);
         assert!(cpu.registers.f.carry);
     }
 
@@ -499,17 +634,29 @@ mod instructions_unit {
     }
 
     #[test]
-    fn test_jp() {
+    fn jp() {
         let mut cpu = CPU::default();
         cpu.execute(Instruction::JP(JumpCondition::Always, 0x1234));
         assert_eq!(cpu.pc, 0x1234);
     }
 
     #[test]
-    fn test_jp_nz() {
+    fn jp_nz() {
         let mut cpu = CPU::default();
         cpu.registers.f.zero = false;
         cpu.execute(Instruction::JP(JumpCondition::NotZero, 0x1234));
         assert_eq!(cpu.pc, 0x1234);
     }
+
+    // #[test]
+    // fn swap_r8() {
+    //     let mut cpu = CPU::default();
+    //     cpu.registers.a = 0b10101010;
+    //     cpu.execute(Instruction::SWAP(Target::Register(ArithmeticTarget::A)));
+    //     assert_eq!(cpu.registers.a, 0b01010101); // The upper and lower nibbles should be swapped
+    //     assert!(!cpu.registers.f.zero); // The result is not zero
+    //     assert!(!cpu.registers.f.subtract); // The subtract flag should be reset
+    //     assert!(!cpu.registers.f.half_carry); // The half-carry flag should be reset
+    //     assert!(!cpu.registers.f.carry); // The carry flag should be reset
+    // }
 }

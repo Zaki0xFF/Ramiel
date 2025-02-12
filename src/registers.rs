@@ -16,7 +16,7 @@ pub enum JumpCondition {
     Zero,
     NotZero,
     Carry,
-    NotCarry
+    NotCarry,
 }
 
 pub struct Registers {
