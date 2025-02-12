@@ -73,7 +73,7 @@ impl CPU {
         }
     }
 
-    fn get_source_value(&self, source: Target) -> u16 {
+    fn get_source_value(&mut self, source: Target) -> u16 {
         let value: u16 = match source {
             Target::Register(arithmetic_target) => match arithmetic_target {
                 ArithmeticTarget::A => self.registers.a as u16,
@@ -105,8 +105,12 @@ impl CPU {
                 DoubleTarget::HL => self.bus.memory[self.registers.get_hl() as usize] as u16,
                 DoubleTarget::SP => self.bus.memory[self.sp as usize] as u16,
             },
-            Target::Const8() => self.bus.read_byte(self.pc.wrapping_add(1)) as u16,
+            Target::Const8() => {
+                self.pc = self.pc.wrapping_add(1);
+                self.bus.read_byte(self.pc.wrapping_add(1)) as u16
+            }
             Target::Const16() => {
+                self.pc = self.pc.wrapping_add(2);
                 self.bus.read_byte(self.pc.wrapping_add(1)) as u16 //Probably wrong
             }
             Target::MemoryConst16() => {
