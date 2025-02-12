@@ -648,7 +648,7 @@ mod instructions_unit {
         assert_eq!(cpu.pc, 0x1234);
     }
 
-    // #[test]
+    // #[test] // This test is failing
     // fn swap_r8() {
     //     let mut cpu = CPU::default();
     //     cpu.registers.a = 0b10101010;

@@ -61,18 +61,6 @@ impl Default for CPU {
 }
 
 impl CPU {
-    fn get_arithmetic_value(&self, target: ArithmeticTarget) -> u8 {
-        match target {
-            ArithmeticTarget::A => self.registers.a,
-            ArithmeticTarget::B => self.registers.b,
-            ArithmeticTarget::C => self.registers.c,
-            ArithmeticTarget::D => self.registers.d,
-            ArithmeticTarget::E => self.registers.e,
-            ArithmeticTarget::H => self.registers.h,
-            ArithmeticTarget::L => self.registers.l,
-        }
-    }
-
     fn set_register_value(&mut self, value: u16, target: Target) {
         match target {
             Target::Register(arithmetic_target) => match arithmetic_target {
