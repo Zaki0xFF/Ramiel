@@ -40,7 +40,9 @@ pub enum Instruction {
     EI(),
 
     //jump instructions
+    JPHL(Target),
     JP(JumpCondition, u16),
+    JR(JumpCondition, u16),
 }
 
 impl Instruction {

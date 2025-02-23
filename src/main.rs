@@ -147,6 +147,16 @@ impl CPU {
         value
     }
 
+    fn get_jcondition_value(&self, flag: JumpCondition) -> bool {
+        match flag {
+            JumpCondition::Always => true,
+            JumpCondition::Zero => self.registers.f.zero,
+            JumpCondition::NotZero => !self.registers.f.zero,
+            JumpCondition::Carry => self.registers.f.carry,
+            JumpCondition::NotCarry => !self.registers.f.carry,
+        }
+    }
+
     fn _jump(&mut self, address: u16) {
         self.pc = address;
     }
@@ -546,13 +556,7 @@ impl CPU {
                 let target_address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16
                     | ((self.bus.read_byte(self.pc.wrapping_add(2)) as u16) << 8);
 
-                let jump = match condition {
-                    JumpCondition::Always => true,
-                    JumpCondition::Zero => self.registers.f.zero,
-                    JumpCondition::NotZero => !self.registers.f.zero,
-                    JumpCondition::Carry => self.registers.f.carry,
-                    JumpCondition::NotCarry => !self.registers.f.carry,
-                };
+                let jump = self.get_jcondition_value(condition);
 
                 if jump {
                     if address != 0 {
@@ -562,6 +566,24 @@ impl CPU {
                     }
                 } else {
                     return self.pc.wrapping_add(3); // Skip over the instruction (1 byte) and operand (2 bytes)
+                }
+            }
+            Instruction::JPHL(target) => {
+                let target_address = self.get_register_value(target);
+                self.pc = target_address;
+            }
+            Instruction::JR(condition, address) => {
+                let jump = self.get_jcondition_value(condition);
+                let target_address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16
+                    | ((self.bus.read_byte(self.pc.wrapping_add(2)) as u16) << 8);
+                if jump {
+                    if address != 0 {
+                        self.pc = address;
+                    } else {
+                        self.pc = target_address;
+                    }
+                } else {
+                    return self.pc.wrapping_add(2);
                 }
             }
         }

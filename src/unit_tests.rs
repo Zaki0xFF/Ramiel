@@ -648,6 +648,28 @@ mod instructions_unit {
         assert_eq!(cpu.pc, 0x1234);
     }
 
+    #[test]
+    fn jr() {
+        let mut cpu = CPU::default();
+        cpu.execute(Instruction::JR(JumpCondition::Always, 0x01));
+        assert_eq!(cpu.pc, 0x01);
+    }
+
+    #[test]
+    fn jr_nz() {
+        let mut cpu = CPU::default();
+        cpu.registers.f.zero = false;
+        cpu.execute(Instruction::JR(JumpCondition::NotZero, 0x01));
+        assert_eq!(cpu.pc, 0x01);
+    }
+
+    #[test]
+    fn jp_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.execute(Instruction::JPHL(Target::Register16(DoubleTarget::HL)));
+        assert_eq!(cpu.pc, 0x1234);
+    }
     // #[test] // This test is failing
     // fn swap_r8() {
     //     let mut cpu = CPU::default();
