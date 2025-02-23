@@ -670,15 +670,15 @@ mod instructions_unit {
         cpu.execute(Instruction::JPHL(Target::Register16(DoubleTarget::HL)));
         assert_eq!(cpu.pc, 0x1234);
     }
-    // #[test] // This test is failing
-    // fn swap_r8() {
-    //     let mut cpu = CPU::default();
-    //     cpu.registers.a = 0b10101010;
-    //     cpu.execute(Instruction::SWAP(Target::Register(ArithmeticTarget::A)));
-    //     assert_eq!(cpu.registers.a, 0b01010101); // The upper and lower nibbles should be swapped
-    //     assert!(!cpu.registers.f.zero); // The result is not zero
-    //     assert!(!cpu.registers.f.subtract); // The subtract flag should be reset
-    //     assert!(!cpu.registers.f.half_carry); // The half-carry flag should be reset
-    //     assert!(!cpu.registers.f.carry); // The carry flag should be reset
-    // }
+    #[test] // This test is failing
+    fn swap_r8() {
+        let mut cpu = CPU::default();
+        cpu.registers.a = 0b11110000;
+        cpu.execute(Instruction::SWAP(Target::Register(ArithmeticTarget::A)));
+        assert_eq!(cpu.registers.a, 0b00001111);
+        assert!(!cpu.registers.f.zero);
+        assert!(!cpu.registers.f.subtract);
+        assert!(!cpu.registers.f.half_carry);
+        assert!(!cpu.registers.f.carry);
+    }
 }
