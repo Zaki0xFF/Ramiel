@@ -670,7 +670,7 @@ mod instructions_unit {
         cpu.execute(Instruction::JPHL(Target::Register16(DoubleTarget::HL)));
         assert_eq!(cpu.pc, 0x1234);
     }
-    #[test] // This test is failing
+    #[test]
     fn swap_r8() {
         let mut cpu = CPU::default();
         cpu.registers.a = 0b11110000;
