@@ -43,6 +43,10 @@ pub enum Instruction {
     JPHL(Target),
     JP(JumpCondition, u16),
     JR(JumpCondition, u16),
+
+    //stack instructions
+    PUSH(Target),
+    POP(Target),
 }
 
 impl Instruction {

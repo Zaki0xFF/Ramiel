@@ -586,6 +586,20 @@ impl CPU {
                     return self.pc.wrapping_add(2);
                 }
             }
+            Instruction::PUSH(target) => {
+                let value = self.get_register_value(target);
+                self.sp = self.sp.wrapping_sub(2);
+                self.bus.write_byte(self.sp, (value >> 8) as u8);
+                self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::POP(target) => {
+                let value = self.bus.read_byte(self.sp) as u16
+                    | ((self.bus.read_byte(self.sp.wrapping_add(1)) as u16) << 8);
+                self.set_register_value(value, target);
+                self.sp = self.sp.wrapping_add(2);
+                self.pc = self.pc.wrapping_add(1);
+            }
         }
         print!("{:?}", &instruction);
         self.pc
