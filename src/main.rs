@@ -594,8 +594,8 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::POP(target) => {
-                let value = self.bus.read_byte(self.sp) as u16
-                    | ((self.bus.read_byte(self.sp.wrapping_add(1)) as u16) << 8);
+                let value = (self.bus.read_byte(self.sp) as u16) << 8
+                    | self.bus.read_byte(self.sp.wrapping_add(1)) as u16;
                 self.set_register_value(value, target);
                 self.sp = self.sp.wrapping_add(2);
                 self.pc = self.pc.wrapping_add(1);

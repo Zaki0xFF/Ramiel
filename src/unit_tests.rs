@@ -681,4 +681,19 @@ mod instructions_unit {
         assert!(!cpu.registers.f.half_carry);
         assert!(!cpu.registers.f.carry);
     }
+
+    #[test]
+    fn push_pop() {
+        let mut cpu = CPU::default();
+
+        cpu.sp = 0xFFFE; // Assume SP is set to 0xFFFE for the sake of the test
+                         // In the hardware it is normally set in the boot ROM
+
+        cpu.registers.set_bc(0x1234);
+        cpu.execute(Instruction::PUSH(Target::Register16(DoubleTarget::BC)));
+        assert_eq!(cpu.bus.read_byte(cpu.sp), 0x12);
+        assert_eq!(cpu.bus.read_byte(cpu.sp + 1), 0x34);
+        cpu.execute(Instruction::POP(Target::Register16(DoubleTarget::BC)));
+        assert_eq!(cpu.registers.get_bc(), 0x1234);
+    }
 }
