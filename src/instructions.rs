@@ -47,6 +47,9 @@ pub enum Instruction {
     //stack instructions
     PUSH(Target),
     POP(Target),
+
+    CALL(JumpCondition, u16),
+    RET(JumpCondition),
 }
 
 impl Instruction {

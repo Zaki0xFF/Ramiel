@@ -157,6 +157,25 @@ impl CPU {
         }
     }
 
+    fn push(&mut self, value: u16) {
+        if self.sp < 2 {
+            panic!("Stack overflow");
+        }
+        self.sp = self.sp.wrapping_sub(2);
+        self.bus.write_byte(self.sp, (value >> 8) as u8);
+        self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
+    }
+
+    fn pop(&mut self) -> u16 {
+        if self.sp > 0xFFFD {
+            panic!("Stack underflow");
+        }
+        let value = (self.bus.read_byte(self.sp) as u16) << 8
+            | self.bus.read_byte(self.sp.wrapping_add(1)) as u16;
+        self.sp = self.sp.wrapping_add(2);
+        value
+    }
+
     fn _jump(&mut self, address: u16) {
         self.pc = address;
     }
@@ -599,6 +618,29 @@ impl CPU {
                 self.set_register_value(value, target);
                 self.sp = self.sp.wrapping_add(2);
                 self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::CALL(condition, address) => {
+                let jump = self.get_jcondition_value(condition);
+                let target_address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16
+                    | ((self.bus.read_byte(self.pc.wrapping_add(2)) as u16) << 8);
+                if jump {
+                    self.push(self.pc.wrapping_add(3));
+                    self.pc = if address != 0 {
+                        address
+                    } else {
+                        target_address
+                    };
+                } else {
+                    return self.pc.wrapping_add(3);
+                }
+            }
+            Instruction::RET(condition) => {
+                let jump = self.get_jcondition_value(condition);
+                if jump {
+                    self.pc = self.pop();
+                } else {
+                    return self.pc.wrapping_add(1);
+                }
             }
         }
         print!("{:?}", &instruction);

@@ -696,4 +696,16 @@ mod instructions_unit {
         cpu.execute(Instruction::POP(Target::Register16(DoubleTarget::BC)));
         assert_eq!(cpu.registers.get_bc(), 0x1234);
     }
+
+    #[test]
+    fn call_ret() {
+        let mut cpu = CPU::default();
+        cpu.pc = 0x1234;
+        cpu.sp = 0xFFEE;
+        cpu.execute(Instruction::CALL(JumpCondition::Always, 0x5678));
+        assert_eq!(cpu.pc, 0x5678);
+
+        cpu.execute(Instruction::RET(JumpCondition::Always));
+        assert_eq!(cpu.pc, 0x1237);
+    }
 }
