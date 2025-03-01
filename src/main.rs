@@ -51,7 +51,7 @@ impl Default for CPU {
             sp: 0,
             bus: MemoryBus {
                 memory: {
-                    let mut _mem = [0u8; 0xFFFF];
+                    let mut mem = [0u8; 0xFFFF];
                     //let boot_rom = include_bytes!("../roms/dmg0_boot.bin");
                     //mem[..boot_rom.len()].copy_from_slice(boot_rom);
                     [0u8; 0xFFFF]
@@ -183,7 +183,9 @@ impl CPU {
     }
 
     fn step(&mut self) {
-        if self.is_halted == true{ return;}
+        if self.is_halted == true {
+            return;
+        }
         let mut instruction_byte = self.bus.read_byte(self.pc);
         let prefixed = instruction_byte == 0xCB;
         if prefixed {
@@ -594,18 +596,13 @@ impl CPU {
                 let target_address = self.get_register_value(target);
                 self.pc = target_address;
             }
-            Instruction::JR(condition, address) => {
+            Instruction::JR(condition) => {
                 let jump = self.get_jcondition_value(condition);
-                let target_address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16
-                    | ((self.bus.read_byte(self.pc.wrapping_add(2)) as u16) << 8);
                 if jump {
-                    if address != 0 {
-                        self.pc = address;
-                    } else {
-                        self.pc = target_address;
-                    }
+                    let offset = self.bus.read_byte(self.pc.wrapping_add(1)) as i8;
+                    self.pc = self.pc.wrapping_add(2).wrapping_add(offset as u16);
                 } else {
-                    return self.pc.wrapping_add(2);
+                    self.pc = self.pc.wrapping_add(2);
                 }
             }
             Instruction::PUSH(target) => {
@@ -645,8 +642,93 @@ impl CPU {
                     return self.pc.wrapping_add(1);
                 }
             }
+            Instruction::RETI(condition) => {
+                let jump = self.get_jcondition_value(condition);
+                if jump {
+                    self.pc = self.pop();
+                } else {
+                    return self.pc.wrapping_add(1);
+                }
+                self.registers.ime = true;
+            }
             Instruction::HALT() => {
                 self.is_halted = true;
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::LDI(target, source) => {
+                let value = self.get_register_value(source);
+                self.set_register_value(value, target);
+                self.registers
+                    .set_hl(self.registers.get_hl().wrapping_add(1));
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::LDD(target, source) => {
+                let value = self.get_register_value(source);
+                self.set_register_value(value, target);
+                self.registers
+                    .set_hl(self.registers.get_hl().wrapping_sub(1));
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::LDH(target, source) => {
+                let value: u8 = match source {
+                    LDHRegister::C => self.bus.read_byte(0xFF00 + self.registers.c as u16),
+                    LDHRegister::MemoryConst16(_) => {
+                        self.pc = self.pc.wrapping_add(1);
+                        self.get_register_value(Target::MemoryConst16()) as u8
+                    }
+                    LDHRegister::ArithmeticTarget => {
+                        self.get_register_value(Target::Register(ArithmeticTarget::A)) as u8
+                    }
+                };
+                match target {
+                    LDHRegister::ArithmeticTarget => {
+                        self.registers.a = value;
+                    }
+                    LDHRegister::C => {
+                        self.bus.write_byte(0xFF00 + self.registers.c as u16, value);
+                    }
+                    LDHRegister::MemoryConst16(addr) => {
+                        self.pc = self.pc.wrapping_add(1);
+                        self.bus.write_byte(addr as u16, value);
+                    }
+                }
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::LDHLSP() => {
+                // LD HL,SP+e8
+                let sp = self.sp;
+                let offset = self.bus.read_byte(self.pc.wrapping_add(1) as u16) as i8;
+                let result = self.sp.wrapping_add(offset as u16);
+                self.registers.set_hl(result);
+                self.registers.f.zero = false;
+                self.registers.f.subtract = false;
+                self.registers.f.half_carry = (sp & 0xF) + ((offset as u16) & 0xF) > 0xF;
+                self.registers.f.carry = (sp & 0xFF) + ((offset as u16) & 0xFF) > 0xFF;
+                self.pc = self.pc.wrapping_add(2);
+            }
+            Instruction::PUSHAF() => {
+                self.sp = self.sp.wrapping_sub(1);
+                self.bus.write_byte(self.sp, self.registers.a);
+
+                self.sp = self.sp.wrapping_sub(1);
+                let f_value = (self.registers.f.zero as u8) << 7
+                    | (self.registers.f.subtract as u8) << 6
+                    | (self.registers.f.half_carry as u8) << 5
+                    | (self.registers.f.carry as u8) << 4;
+                self.bus.write_byte(self.sp, f_value);
+
+                self.pc = self.pc.wrapping_add(1);
+            }
+            Instruction::POPAF() => {
+                self.registers.f.carry = self.bus.read_byte(self.sp) & 0x10 == 0x10;
+                self.registers.f.half_carry = self.bus.read_byte(self.sp) & 0x20 == 0x20;
+                self.registers.f.subtract = self.bus.read_byte(self.sp) & 0x40 == 0x40;
+                self.registers.f.zero = self.bus.read_byte(self.sp) & 0x80 == 0x80;
+                self.sp = self.sp.wrapping_add(1);
+
+                self.registers.a = self.bus.read_byte(self.sp);
+                self.sp = self.sp.wrapping_add(1);
+
                 self.pc = self.pc.wrapping_add(1);
             }
         }

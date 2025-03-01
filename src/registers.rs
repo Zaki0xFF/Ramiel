@@ -60,6 +60,13 @@ pub enum DoubleTarget {
     SP,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum LDHRegister {
+    C,
+    MemoryConst16(DoubleTarget),
+    ArithmeticTarget,
+}
+
 impl std::convert::From<FlagsRegister> for u8 {
     fn from(flag: FlagsRegister) -> u8 {
         (if flag.zero { 1 } else { 0 }) << ZERO_FLAG_BYTE_POSITION

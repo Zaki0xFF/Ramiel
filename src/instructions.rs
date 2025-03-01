@@ -23,7 +23,10 @@ pub enum Instruction {
     SLA(Target),
     SWAP(Target),
     LD(Target, Target),
-
+    LDI(Target, Target),
+    LDD(Target, Target),
+    LDH(LDHRegister, LDHRegister),
+    LDHLSP(),
     //No target instructions
     CCF(),
     CPL(),
@@ -42,14 +45,17 @@ pub enum Instruction {
     //jump instructions
     JPHL(Target),
     JP(JumpCondition, u16),
-    JR(JumpCondition, u16),
+    JR(JumpCondition),
 
     //stack instructions
     PUSH(Target),
     POP(Target),
+    PUSHAF(),
+    POPAF(),
 
     CALL(JumpCondition, u16),
     RET(JumpCondition),
+    RETI(JumpCondition),
     HALT(),
 }
 
@@ -79,59 +85,63 @@ impl Instruction {
                 Target::Const8(),
             )),
             0x07 => Some(Instruction::RLC(Target::Register(ArithmeticTarget::A))),
-            0x08 => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x08 => Some(Instruction::LD(
+                Target::MemoryConst16(),
+                Target::Register16(DoubleTarget::SP),
+            )),
             0x09 => Some(Instruction::ADD(
                 Target::Register16(DoubleTarget::HL),
                 Target::Register16(DoubleTarget::BC),
             )),
-            0x0A => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x0A => Some(Instruction::LD(
+                Target::Register(ArithmeticTarget::A),
+                Target::MemoryR16(DoubleTarget::BC),
+            )),
             0x0B => Some(Instruction::DEC(Target::Register16(DoubleTarget::BC))),
             0x0C => Some(Instruction::INC(Target::Register(ArithmeticTarget::C))),
             0x0D => Some(Instruction::DEC(Target::Register(ArithmeticTarget::C))),
-            0x0E => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x0E => Some(Instruction::LD(
+                Target::Register(ArithmeticTarget::C),
+                Target::Const8(),
+            )),
             0x0F => Some(Instruction::RRC(Target::Register(ArithmeticTarget::A))),
 
             0x10 => Some(Instruction::STOP()),
-            0x11 => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
-            0x12 => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x11 => Some(Instruction::LD(
+                Target::Register16(DoubleTarget::DE),
+                Target::Const16(),
+            )),
+            0x12 => Some(Instruction::LD(
+                Target::MemoryR16(DoubleTarget::DE),
+                Target::Register(ArithmeticTarget::A),
+            )),
             0x13 => Some(Instruction::INC(Target::Register16(DoubleTarget::DE))),
             0x14 => Some(Instruction::INC(Target::Register(ArithmeticTarget::D))),
             0x15 => Some(Instruction::DEC(Target::Register(ArithmeticTarget::D))),
-            0x16 => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x16 => Some(Instruction::LD(
+                Target::Register(ArithmeticTarget::D),
+                Target::Const8(),
+            )),
             0x17 => Some(Instruction::RL(Target::Register(ArithmeticTarget::A))),
-            0x18 => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x18 => Some(Instruction::JR(JumpCondition::Always)),
             0x19 => Some(Instruction::ADD(
                 Target::Register16(DoubleTarget::HL),
                 Target::Register16(DoubleTarget::DE),
             )),
-            0x1A => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x1A => Some(Instruction::LD(
+                Target::Register(ArithmeticTarget::A),
+                Target::MemoryR16(DoubleTarget::DE),
+            )),
             0x1B => Some(Instruction::DEC(Target::Register16(DoubleTarget::DE))),
             0x1C => Some(Instruction::INC(Target::Register(ArithmeticTarget::E))),
             0x1D => Some(Instruction::DEC(Target::Register(ArithmeticTarget::E))),
-            0x1E => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x1E => Some(Instruction::LD(
+                Target::Register(ArithmeticTarget::E),
+                Target::Const8(),
+            )),
             0x1F => Some(Instruction::RR(Target::Register(ArithmeticTarget::A))),
 
-            0x20 => {
-                unimplemented!("Instruction not implemented yet: {:#X}", byte)
-            }
+            0x20 => Some(Instruction::JR(JumpCondition::NotZero)),
             0x21 => {
                 unimplemented!("Instruction not implemented yet: {:#X}", byte)
             }

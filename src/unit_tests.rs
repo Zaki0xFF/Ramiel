@@ -649,21 +649,6 @@ mod instructions_unit {
     }
 
     #[test]
-    fn jr() {
-        let mut cpu = CPU::default();
-        cpu.execute(Instruction::JR(JumpCondition::Always, 0x01));
-        assert_eq!(cpu.pc, 0x01);
-    }
-
-    #[test]
-    fn jr_nz() {
-        let mut cpu = CPU::default();
-        cpu.registers.f.zero = false;
-        cpu.execute(Instruction::JR(JumpCondition::NotZero, 0x01));
-        assert_eq!(cpu.pc, 0x01);
-    }
-
-    #[test]
     fn jp_hl() {
         let mut cpu = CPU::default();
         cpu.registers.set_hl(0x1234);
@@ -720,5 +705,57 @@ mod instructions_unit {
 
         cpu.execute(Instruction::RET(JumpCondition::Always));
         assert_eq!(cpu.pc, 0x1237);
+    }
+
+    #[test]
+    fn ldi() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.registers.a = 0x12;
+        cpu.execute(Instruction::LDI(
+            Target::MemoryR16(DoubleTarget::HL),
+            Target::Register(ArithmeticTarget::A),
+        ));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
+        assert_eq!(cpu.registers.get_hl(), 0x1235);
+    }
+
+    #[test]
+    fn ldi_a() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.execute(Instruction::LDI(
+            Target::Register(ArithmeticTarget::A),
+            Target::MemoryR16(DoubleTarget::HL),
+        ));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
+        assert_eq!(cpu.registers.get_hl(), 0x1235);
+    }
+
+    #[test]
+    fn ldd() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.registers.a = 0x12;
+        cpu.execute(Instruction::LDD(
+            Target::MemoryR16(DoubleTarget::HL),
+            Target::Register(ArithmeticTarget::A),
+        ));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
+        assert_eq!(cpu.registers.get_hl(), 0x1233);
+    }
+
+    #[test]
+    fn ldd_a() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.execute(Instruction::LDD(
+            Target::Register(ArithmeticTarget::A),
+            Target::MemoryR16(DoubleTarget::HL),
+        ));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
+        assert_eq!(cpu.registers.get_hl(), 0x1233);
     }
 }
