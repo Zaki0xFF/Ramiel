@@ -9,6 +9,7 @@ pub struct CPU {
     pc: u16,
     sp: u16,
     bus: MemoryBus,
+    is_halted: bool,
 }
 
 #[allow(dead_code)]
@@ -56,6 +57,7 @@ impl Default for CPU {
                     [0u8; 0xFFFF]
                 },
             },
+            is_halted: false,
         }
     }
 }
@@ -181,6 +183,7 @@ impl CPU {
     }
 
     fn step(&mut self) {
+        if self.is_halted == true{ return;}
         let mut instruction_byte = self.bus.read_byte(self.pc);
         let prefixed = instruction_byte == 0xCB;
         if prefixed {
@@ -641,6 +644,10 @@ impl CPU {
                 } else {
                     return self.pc.wrapping_add(1);
                 }
+            }
+            Instruction::HALT() => {
+                self.is_halted = true;
+                self.pc = self.pc.wrapping_add(1);
             }
         }
         print!("{:?}", &instruction);

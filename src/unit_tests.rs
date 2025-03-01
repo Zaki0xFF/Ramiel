@@ -683,6 +683,19 @@ mod instructions_unit {
     }
 
     #[test]
+    fn swap_hl() {
+        let mut cpu = CPU::default();
+        cpu.registers.set_hl(0x1234);
+        cpu.bus.write_byte(0x1234, 0b11110000);
+        cpu.execute(Instruction::SWAP(Target::MemoryR16(DoubleTarget::HL)));
+        assert_eq!(cpu.bus.read_byte(0x1234), 0b00001111);
+        assert!(!cpu.registers.f.zero);
+        assert!(!cpu.registers.f.subtract);
+        assert!(!cpu.registers.f.half_carry);
+        assert!(!cpu.registers.f.carry);
+    }
+
+    #[test]
     fn push_pop() {
         let mut cpu = CPU::default();
 

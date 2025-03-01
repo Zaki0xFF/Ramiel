@@ -50,6 +50,7 @@ pub enum Instruction {
 
     CALL(JumpCondition, u16),
     RET(JumpCondition),
+    HALT(),
 }
 
 impl Instruction {
