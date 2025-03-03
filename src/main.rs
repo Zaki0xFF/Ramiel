@@ -17,7 +17,7 @@ pub struct CPU {
 
 #[allow(dead_code)]
 struct MemoryBus {
-    memory: [u8; 0xFFFF],
+    memory: [u8; 0xFFFF + 1],
 }
 
 impl MemoryBus {
@@ -64,7 +64,7 @@ impl Default for CPU {
             pc: 0,
             sp: 0,
             bus: MemoryBus {
-                memory: { [0u8; 0xFFFF] },
+                memory: { [0u8; 0xFFFF + 1] },
             },
             is_halted: false,
         }
@@ -167,8 +167,8 @@ impl CPU {
     fn get_jcondition_value(&self, flag: JumpCondition) -> bool {
         match flag {
             JumpCondition::Always => true,
-            JumpCondition::Zero => self.registers.f.zero,
-            JumpCondition::NotZero => !self.registers.f.zero,
+            JumpCondition::Zero => !self.registers.f.zero,
+            JumpCondition::NotZero => self.registers.f.zero,
             JumpCondition::Carry => self.registers.f.carry,
             JumpCondition::NotCarry => !self.registers.f.carry,
         }
@@ -205,10 +205,6 @@ impl CPU {
         let prefixed = instruction_byte == 0xCB;
         if prefixed {
             instruction_byte = self.bus.read_byte(self.pc.wrapping_add(1));
-            panic!(
-                "Prefixed instruction not supported: 0xCB{:x}",
-                instruction_byte
-            );
         }
         let next_pc: u16 =
             if let Some(instruction) = Instruction::from_byte(instruction_byte, prefixed) {
@@ -444,9 +440,9 @@ impl CPU {
                 self.registers.f.half_carry = true;
                 self.pc = self.pc.wrapping_add(1);
             }
-            Instruction::BIT(u8, target) => {
-                let value = self.get_register_value(target);
-                self.registers.f.zero = (value & (1 << u8)) == 0;
+            Instruction::BIT(bit, target) => {
+                let value = self.get_register_value(target) as u8;
+                self.registers.f.zero = (value & (1 << bit)) == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = true;
                 self.pc = self.pc.wrapping_add(2);
@@ -753,17 +749,17 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
         }
-        print!("{:?}", &instruction);
+        print!("Instruction: {:?} | pc:{:?}", &instruction, self.pc);
         self.pc
     }
 }
 
 fn main() {
     use std::io::{self, Write};
-    let path = Path::new("./roms/06.gb");
+    let path = Path::new("./roms/dmg_boot.bin");
     let mut cpu = CPU::new_with_rom(path).unwrap();
     loop {
-        print!("Press Enter to step: \n");
+        print!("Press Enter to step:");
         io::stdout().flush().unwrap();
 
         let mut input = String::new();
