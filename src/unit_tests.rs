@@ -643,7 +643,7 @@ mod instructions_unit {
     #[test]
     fn jp_nz() {
         let mut cpu = CPU::default();
-        cpu.registers.f.zero = false;
+        cpu.registers.f.zero = true;
         cpu.execute(Instruction::JP(JumpCondition::NotZero, 0x1234));
         assert_eq!(cpu.pc, 0x1234);
     }
