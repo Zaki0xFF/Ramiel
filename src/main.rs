@@ -3,6 +3,9 @@ pub mod registers;
 mod unit_tests;
 use instructions::*;
 use registers::*;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 
 pub struct CPU {
     registers: Registers,
@@ -24,6 +27,17 @@ impl MemoryBus {
 
     fn write_byte(&mut self, address: u16, value: u8) {
         self.memory[address as usize] = value;
+    }
+
+    fn load_rom(&mut self, path: &Path) -> std::io::Result<()> {
+        let mut file = File::open(path)?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)?;
+
+        let length = buffer.len().min(self.memory.len());
+        self.memory[..length].copy_from_slice(&buffer[..length]);
+
+        Ok(())
     }
 }
 
@@ -50,12 +64,7 @@ impl Default for CPU {
             pc: 0,
             sp: 0,
             bus: MemoryBus {
-                memory: {
-                    let mut mem = [0u8; 0xFFFF];
-                    //let boot_rom = include_bytes!("../roms/dmg0_boot.bin");
-                    //mem[..boot_rom.len()].copy_from_slice(boot_rom);
-                    [0u8; 0xFFFF]
-                },
+                memory: { [0u8; 0xFFFF] },
             },
             is_halted: false,
         }
@@ -63,6 +72,12 @@ impl Default for CPU {
 }
 
 impl CPU {
+    fn new_with_rom(path: &Path) -> std::io::Result<Self> {
+        let mut cpu = CPU::default();
+        cpu.bus.load_rom(path).unwrap();
+        Ok(cpu)
+    }
+
     fn set_register_value(&mut self, value: u16, target: Target) {
         match target {
             Target::Register(arithmetic_target) => match arithmetic_target {
@@ -731,6 +746,12 @@ impl CPU {
 
                 self.pc = self.pc.wrapping_add(1);
             }
+            Instruction::RES(bit, target) => {
+                let value = self.get_register_value(target);
+                let new_value = value & !(1 << bit);
+                self.set_register_value(new_value, target);
+                self.pc = self.pc.wrapping_add(2);
+            }
         }
         print!("{:?}", &instruction);
         self.pc
@@ -738,7 +759,19 @@ impl CPU {
 }
 
 fn main() {
-    let mut cpu = CPU::default();
+    use std::io::{self, Write};
+    let path = Path::new("./roms/06.gb");
+    let mut cpu = CPU::new_with_rom(path).unwrap();
+    loop {
+        print!("Press Enter to step: \n");
+        io::stdout().flush().unwrap();
 
-    cpu.step();
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read from stdin");
+
+        cpu.step();
+        print!("\n");
+    }
 }
