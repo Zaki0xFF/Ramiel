@@ -399,7 +399,7 @@ impl Instruction {
 
             0x20 => Some(Instruction::JR(JumpCondition::NotZero)),
             0x21 => Some(Instruction::LD(
-                Target::MemoryR16(DoubleTarget::HL),
+                Target::Register16(DoubleTarget::HL),
                 Target::Const16(),
             )),
             0x22 => Some(Instruction::LDI(

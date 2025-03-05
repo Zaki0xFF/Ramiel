@@ -149,8 +149,9 @@ impl CPU {
                 DoubleTarget::SP => self.bus.memory[self.sp as usize] as u16,
             },
             Target::Const8() => {
+                let result = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
                 self.pc = self.pc.wrapping_add(1);
-                self.bus.read_byte(self.pc.wrapping_add(1)) as u16
+                result
             }
             Target::Const16() => {
                 let low_byte = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
@@ -204,6 +205,7 @@ impl CPU {
             return;
         }
         let mut instruction_byte = self.bus.read_byte(self.pc);
+        println!("Instruction byte{:02x}", instruction_byte);
         let prefixed = instruction_byte == 0xCB;
         if prefixed {
             instruction_byte = self.bus.read_byte(self.pc.wrapping_add(1));
@@ -224,6 +226,7 @@ impl CPU {
     }
 
     fn execute(&mut self, instruction: Instruction) -> u16 {
+        let pc = self.pc;
         match instruction {
             Instruction::ADD(target, source) => {
                 let value: u16 = self.get_register_value(source);
@@ -756,7 +759,7 @@ impl CPU {
         }
         print!(
             "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n",
-            self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp , self.pc
+            self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp , pc
         );
         print!(
             "FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n",
@@ -774,6 +777,9 @@ fn main() {
     use std::io::{self, Write};
     let path = Path::new("./roms/dmg_boot.bin");
     let mut cpu = CPU::new_with_rom(path).unwrap();
+    while !(cpu.registers.get_hl() == 0x8000) {
+        cpu.step();
+    }
     loop {
         print!("Press Enter to step:");
         io::stdout().flush().unwrap();
