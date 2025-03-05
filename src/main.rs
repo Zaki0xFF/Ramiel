@@ -153,11 +153,13 @@ impl CPU {
                 self.bus.read_byte(self.pc.wrapping_add(1)) as u16
             }
             Target::Const16() => {
+                let low_byte = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
+                let high_byte = self.bus.read_byte(self.pc.wrapping_add(2)) as u16;
                 self.pc = self.pc.wrapping_add(2);
-                self.bus.read_byte(self.pc.wrapping_add(1)) as u16 //Probably wrong
+                (high_byte << 8) | low_byte
             }
             Target::MemoryConst16() => {
-                let address = self.bus.read_byte(self.pc.wrapping_add(1)); // Probably wrong
+                let address = self.bus.read_byte(self.pc.wrapping_add(1));
                 self.bus.read_byte(address as u16) as u16
             }
         };
@@ -167,8 +169,8 @@ impl CPU {
     fn get_jcondition_value(&self, flag: JumpCondition) -> bool {
         match flag {
             JumpCondition::Always => true,
-            JumpCondition::Zero => !self.registers.f.zero,
-            JumpCondition::NotZero => self.registers.f.zero,
+            JumpCondition::Zero => self.registers.f.zero,
+            JumpCondition::NotZero => !self.registers.f.zero,
             JumpCondition::Carry => self.registers.f.carry,
             JumpCondition::NotCarry => !self.registers.f.carry,
         }
@@ -675,9 +677,12 @@ impl CPU {
             }
             Instruction::LDD(target, source) => {
                 let value = self.get_register_value(source);
+                println!("Value to load: {:#X}", value);
+                println!("HL before decrement: {:#X}", self.registers.get_hl());
                 self.set_register_value(value, target);
                 self.registers
                     .set_hl(self.registers.get_hl().wrapping_sub(1));
+                println!("HL after decrement: {:#X}", self.registers.get_hl());
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::LDH(target, source) => {
@@ -749,7 +754,18 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
         }
-        print!("Instruction: {:?} | pc:{:?}", &instruction, self.pc);
+        print!(
+            "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n",
+            self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp , self.pc
+        );
+        print!(
+            "FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n",
+            self.registers.f.zero,
+            self.registers.f.subtract,
+            self.registers.f.half_carry,
+            self.registers.f.carry
+        );
+        print!("Instruction: {:?}\n", &instruction);
         self.pc
     }
 }
