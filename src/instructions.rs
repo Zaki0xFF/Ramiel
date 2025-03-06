@@ -361,7 +361,6 @@ impl Instruction {
                 Target::Const8(),
             )),
             0x0F => Some(Instruction::RRC(Target::Register(ArithmeticTarget::A))),
-
             0x10 => Some(Instruction::STOP()),
             0x11 => Some(Instruction::LD(
                 Target::Register16(DoubleTarget::DE),
@@ -378,7 +377,7 @@ impl Instruction {
                 Target::Register(ArithmeticTarget::D),
                 Target::Const8(),
             )),
-            0x17 => Some(Instruction::RL(Target::Register(ArithmeticTarget::A))),
+            0x17 => Some(Instruction::RLA()),
             0x18 => Some(Instruction::JR(JumpCondition::Always)),
             0x19 => Some(Instruction::ADD(
                 Target::Register16(DoubleTarget::HL),
@@ -403,7 +402,7 @@ impl Instruction {
                 Target::Const16(),
             )),
             0x22 => Some(Instruction::LDI(
-                Target::Register16(DoubleTarget::HL),
+                Target::MemoryR16(DoubleTarget::HL),
                 Target::Register(ArithmeticTarget::A),
             )),
             0x23 => Some(Instruction::INC(Target::Register16(DoubleTarget::HL))),
@@ -937,7 +936,7 @@ impl Instruction {
             0xDD => panic!("No instruction to execute. This byte is empty: {:#X}", byte),
             0xDE => Some(Instruction::SBC(Target::Register(ArithmeticTarget::A),Target::Const8())),
             0xDF => unimplemented!("RST instruction not implemented yet"),
-            0xE0 => Some(Instruction::LDH(LDHRegister::C, LDHRegister::ArithmeticTarget)),
+            0xE0 => Some(Instruction::LDH(LDHRegister::MemA8, LDHRegister::ArithmeticTarget)),
             0xE1 => Some(Instruction::POP(Target::Register16(DoubleTarget::HL))),
             0xE2 => Some(Instruction::LDH(LDHRegister::C, LDHRegister::ArithmeticTarget)),
             0xE3 => panic!("No instruction to execute. This byte is empty: {:#X}", byte),
@@ -953,7 +952,7 @@ impl Instruction {
             0xED => panic!("No instruction to execute. This byte is empty: {:#X}", byte),
             0xEE => Some(Instruction::XOR(Target::Register(ArithmeticTarget::A),Target::Const8())),
             0xEF => unimplemented!("RST instruction not implemented yet"),
-            0xF0 => Some(Instruction::LDH(LDHRegister::ArithmeticTarget, LDHRegister::C)),
+            0xF0 => Some(Instruction::LDH(LDHRegister::ArithmeticTarget, LDHRegister::MemA8)),
             0xF1 => Some(Instruction::POPAF()),
             0xF2 => Some(Instruction::LDH(LDHRegister::ArithmeticTarget, LDHRegister::C)),
             0xF3 => Some(Instruction::DI()),

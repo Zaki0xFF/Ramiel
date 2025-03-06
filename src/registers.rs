@@ -63,6 +63,7 @@ pub enum DoubleTarget {
 #[derive(Clone, Copy, Debug)]
 pub enum LDHRegister {
     C,
+    MemA8,
     MemoryConst16(DoubleTarget),
     ArithmeticTarget,
 }

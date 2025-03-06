@@ -110,8 +110,12 @@ impl CPU {
                 DoubleTarget::HL => self.bus.write_byte(self.registers.get_hl(), value as u8),
                 DoubleTarget::SP => self.bus.write_byte(self.sp, value as u8),
             },
+            Target::MemoryConst16() => {
+                let address = self.bus.read_byte(self.pc.wrapping_add(1));
+                self.bus.write_byte(address as u16, value as u8);
+            }
             _ => {
-                panic!("Set register value panicked target: {:?}", target);
+                panic!("Invalid target for set_register_value: {:?}", target)
             }
         }
     }
@@ -184,6 +188,7 @@ impl CPU {
         self.sp = self.sp.wrapping_sub(2);
         self.bus.write_byte(self.sp, (value >> 8) as u8);
         self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
+        println!("Pushed value: {:04X} to SP: {:04X}", value, self.sp);
     }
 
     fn pop(&mut self) -> u16 {
@@ -192,7 +197,7 @@ impl CPU {
         }
         let value = (self.bus.read_byte(self.sp) as u16) << 8
             | self.bus.read_byte(self.sp.wrapping_add(1)) as u16;
-        self.sp = self.sp.wrapping_add(2);
+        println!("Popped value: {:04X} from SP: {:04X}", value, self.sp);
         value
     }
 
@@ -205,7 +210,7 @@ impl CPU {
             return;
         }
         let mut instruction_byte = self.bus.read_byte(self.pc);
-        println!("Instruction byte{:02x}", instruction_byte);
+        println!("Instruction byte {:02x}", instruction_byte);
         let prefixed = instruction_byte == 0xCB;
         if prefixed {
             instruction_byte = self.bus.read_byte(self.pc.wrapping_add(1));
@@ -360,11 +365,11 @@ impl CPU {
             }
             Instruction::CP(target) => {
                 let value = self.get_register_value(target) as u8;
-                let new_value = self.registers.a - value;
+                let (new_value, did_overflow) = self.registers.a.overflowing_sub(1);
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = (self.registers.a & 0xF) < (value & 0xF);
-                self.registers.f.carry = self.registers.a < value;
+                self.registers.f.carry = did_overflow;
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::INC(target) => {
@@ -627,6 +632,7 @@ impl CPU {
                 self.bus.write_byte(self.sp, (value >> 8) as u8);
                 self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
                 self.pc = self.pc.wrapping_add(1);
+                println!("Pushed value: {:04X} to SP: {:04X}", value, self.sp);
             }
             Instruction::POP(target) => {
                 let value = (self.bus.read_byte(self.sp) as u16) << 8
@@ -634,6 +640,7 @@ impl CPU {
                 self.set_register_value(value, target);
                 self.sp = self.sp.wrapping_add(2);
                 self.pc = self.pc.wrapping_add(1);
+                println!("Popped value: {:04X} from SP: {:04X}", value, self.sp);
             }
             Instruction::CALL(condition, address) => {
                 let jump = self.get_jcondition_value(condition);
@@ -698,6 +705,11 @@ impl CPU {
                     LDHRegister::ArithmeticTarget => {
                         self.get_register_value(Target::Register(ArithmeticTarget::A)) as u8
                     }
+                    LDHRegister::MemA8 => {
+                        let address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
+                        self.pc = self.pc.wrapping_add(1);
+                        self.bus.read_byte(0xFF00 + address)
+                    }
                 };
                 match target {
                     LDHRegister::ArithmeticTarget => {
@@ -709,6 +721,11 @@ impl CPU {
                     LDHRegister::MemoryConst16(addr) => {
                         self.pc = self.pc.wrapping_add(1);
                         self.bus.write_byte(addr as u16, value);
+                    }
+                    LDHRegister::MemA8 => {
+                        let address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
+                        self.pc = self.pc.wrapping_add(1);
+                        self.bus.write_byte(0xFF00 + address, value);
                     }
                 }
                 self.pc = self.pc.wrapping_add(1);
@@ -777,7 +794,7 @@ fn main() {
     use std::io::{self, Write};
     let path = Path::new("./roms/dmg_boot.bin");
     let mut cpu = CPU::new_with_rom(path).unwrap();
-    while !(cpu.registers.get_hl() == 0x8000) {
+    while !(cpu.pc == 0x00fc) {
         cpu.step();
     }
     loop {
