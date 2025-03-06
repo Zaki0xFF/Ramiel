@@ -113,6 +113,7 @@ impl CPU {
             Target::MemoryConst16() => {
                 let address = self.bus.read_byte(self.pc.wrapping_add(1));
                 self.bus.write_byte(address as u16, value as u8);
+                self.pc = self.pc.wrapping_add(1);
             }
             _ => {
                 panic!("Invalid target for set_register_value: {:?}", target)
@@ -794,7 +795,7 @@ fn main() {
     use std::io::{self, Write};
     let path = Path::new("./roms/dmg_boot.bin");
     let mut cpu = CPU::new_with_rom(path).unwrap();
-    while !(cpu.pc == 0x00fc) {
+    while !(cpu.pc == 0x006a) {
         cpu.step();
     }
     loop {
