@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod instructions_unit {
-    use crate::{ArithmeticTarget, DoubleTarget, Instruction, JumpCondition, Target, CPU};
+    use crate::{cpu::*, instructions::*, registers::*};
 
     #[test]
     fn add() {
