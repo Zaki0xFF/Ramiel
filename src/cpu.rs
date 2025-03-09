@@ -1,5 +1,7 @@
+use crate::gpu::*;
 use crate::instructions::*;
 use crate::registers::*;
+use log::info;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -15,15 +17,25 @@ pub struct CPU {
 #[allow(dead_code)]
 pub struct MemoryBus {
     memory: [u8; 0xFFFF + 1],
+    pub gpu: GPU,
 }
 
 impl MemoryBus {
     pub fn read_byte(&self, address: u16) -> u8 {
-        self.memory[address as usize]
+        let address = address as usize;
+        match address {
+            VRAM_BEGIN..=VRAM_END => self.gpu.read_vram(address - VRAM_BEGIN),
+            // 0xFF44 => self.gpu.read_ly(), // Read LY register
+            _ => self.memory[address as usize],
+        }
     }
 
     pub fn write_byte(&mut self, address: u16, value: u8) {
-        self.memory[address as usize] = value;
+        let address = address as usize;
+        match address {
+            VRAM_BEGIN..=VRAM_END => self.gpu.write_vram(address - VRAM_BEGIN, value),
+            _ => self.memory[address as usize] = value,
+        }
     }
 
     pub fn load_rom(&mut self, path: &Path) -> std::io::Result<()> {
@@ -62,6 +74,7 @@ impl Default for CPU {
             sp: 0,
             bus: MemoryBus {
                 memory: { [0u8; 0xFFFF + 1] },
+                gpu: GPU::new(),
             },
             is_halted: false,
         }
@@ -186,7 +199,6 @@ impl CPU {
         self.sp = self.sp.wrapping_sub(2);
         self.bus.write_byte(self.sp, (value >> 8) as u8);
         self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
-        println!("Pushed value: {:04X} to SP: {:04X}", value, self.sp);
     }
 
     fn pop(&mut self) -> u16 {
@@ -195,7 +207,6 @@ impl CPU {
         }
         let value = (self.bus.read_byte(self.sp) as u16) << 8
             | self.bus.read_byte(self.sp.wrapping_add(1)) as u16;
-        println!("Popped value: {:04X} from SP: {:04X}", value, self.sp);
         value
     }
 
@@ -208,7 +219,6 @@ impl CPU {
             return;
         }
         let mut instruction_byte = self.bus.read_byte(self.pc);
-        println!("Instruction byte {:02x}", instruction_byte);
         let prefixed = instruction_byte == 0xCB;
         if prefixed {
             instruction_byte = self.bus.read_byte(self.pc.wrapping_add(1));
@@ -364,7 +374,6 @@ impl CPU {
             Instruction::CP(target) => {
                 let value = self.get_register_value(target) as u8;
                 let (new_value, did_overflow) = self.registers.a.overflowing_sub(value);
-                println!("{:}", new_value == 0x0000);
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = (self.registers.a & 0xF) < (value & 0xF);
@@ -539,8 +548,6 @@ impl CPU {
             Instruction::SWAP(target) => {
                 let value = self.get_register_value(target) as u8;
                 let new_value = ((value & 0x0F) << 4) | ((value & 0xF0) >> 4);
-                println!("Original value: {:08b}", value);
-                println!("Swapped value: {:08b}", new_value);
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
@@ -631,7 +638,6 @@ impl CPU {
                 self.bus.write_byte(self.sp, (value >> 8) as u8);
                 self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
                 self.pc = self.pc.wrapping_add(1);
-                println!("Pushed value: {:04X} to SP: {:04X}", value, self.sp);
             }
             Instruction::POP(target) => {
                 let value = (self.bus.read_byte(self.sp) as u16) << 8
@@ -639,7 +645,6 @@ impl CPU {
                 self.set_register_value(value, target);
                 self.sp = self.sp.wrapping_add(2);
                 self.pc = self.pc.wrapping_add(1);
-                println!("Popped value: {:04X} from SP: {:04X}", value, self.sp);
             }
             Instruction::CALL(condition, address) => {
                 let jump = self.get_jcondition_value(condition);
@@ -686,12 +691,9 @@ impl CPU {
             }
             Instruction::LDD(target, source) => {
                 let value = self.get_register_value(source);
-                println!("Value to load: {:#X}", value);
-                println!("HL before decrement: {:#X}", self.registers.get_hl());
                 self.set_register_value(value, target);
                 self.registers
                     .set_hl(self.registers.get_hl().wrapping_sub(1));
-                println!("HL after decrement: {:#X}", self.registers.get_hl());
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::LDH(target, source) => {
@@ -773,18 +775,17 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
         }
-        print!(
-            "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n",
-            self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp , pc
-        );
-        print!(
-            "FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n",
+        info!(
+            "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n
+            FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n
+            Instruction: {:?}\n",
+            self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp , pc,
             self.registers.f.zero,
             self.registers.f.subtract,
             self.registers.f.half_carry,
-            self.registers.f.carry
+            self.registers.f.carry,
+            &instruction,
         );
-        print!("Instruction: {:?}\n", &instruction);
         self.pc
     }
 }
