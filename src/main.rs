@@ -51,8 +51,8 @@ fn main() {
         while window.is_open() {
             let mut state = render_cpu.lock().unwrap();
             let framebuffer = state.bus.gpu.render_screen();
-            window.update_with_buffer(&framebuffer, 160, 144).unwrap();
             drop(state);
+            window.update_with_buffer(&framebuffer, 160, 144).unwrap();
             thread::sleep(Duration::from_millis(16));
         }
         exit(0);
