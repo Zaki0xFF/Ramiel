@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod instructions_unit {
     use crate::{cpu::*, instructions::*, registers::*};
-
     #[test]
     fn add() {
         //ADD A, r8

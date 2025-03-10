@@ -1,10 +1,10 @@
 use crate::gpu::*;
 use crate::instructions::*;
 use crate::registers::*;
-use log::info;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use std::sync::mpsc::Sender;
 
 pub struct CPU {
     pub registers: Registers,
@@ -12,6 +12,7 @@ pub struct CPU {
     pub sp: u16,
     pub bus: MemoryBus,
     is_halted: bool,
+    log_sender: Option<Sender<String>>,
 }
 
 #[allow(dead_code)]
@@ -21,15 +22,16 @@ pub struct MemoryBus {
 }
 
 impl MemoryBus {
+    #[inline(always)]
     pub fn read_byte(&self, address: u16) -> u8 {
         let address = address as usize;
         match address {
             VRAM_BEGIN..=VRAM_END => self.gpu.read_vram(address - VRAM_BEGIN),
-            // 0xFF44 => self.gpu.read_ly(), // Read LY register
             _ => self.memory[address as usize],
         }
     }
 
+    #[inline(always)]
     pub fn write_byte(&mut self, address: u16, value: u8) {
         let address = address as usize;
         match address {
@@ -77,17 +79,20 @@ impl Default for CPU {
                 gpu: GPU::new(),
             },
             is_halted: false,
+            log_sender: None,
         }
     }
 }
 
 impl CPU {
-    pub fn new_with_rom(path: &Path) -> std::io::Result<Self> {
+    pub fn new_with_rom(path: &Path, log_sender: Sender<String>) -> std::io::Result<Self> {
         let mut cpu = CPU::default();
         cpu.bus.load_rom(path).unwrap();
+        cpu.log_sender = Some(log_sender);
         Ok(cpu)
     }
 
+    #[inline(always)]
     fn set_register_value(&mut self, value: u16, target: Target) {
         match target {
             Target::Register(arithmetic_target) => match arithmetic_target {
@@ -131,6 +136,7 @@ impl CPU {
         }
     }
 
+    #[inline(always)]
     fn get_register_value(&mut self, source: Target) -> u16 {
         let value: u16 = match source {
             Target::Register(arithmetic_target) => match arithmetic_target {
@@ -215,7 +221,7 @@ impl CPU {
     }
 
     pub fn step(&mut self) {
-        if self.is_halted == true {
+        if self.is_halted {
             return;
         }
         let mut instruction_byte = self.bus.read_byte(self.pc);
@@ -775,17 +781,20 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
         }
-        info!(
-            "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n
-            FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n
-            Instruction: {:?}\n",
-            self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp , pc,
-            self.registers.f.zero,
-            self.registers.f.subtract,
-            self.registers.f.half_carry,
-            self.registers.f.carry,
-            &instruction,
-        );
+        if let Some(ref sender) = self.log_sender {
+            let log_message = format!(
+                        "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
+                        FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
+                        Instruction: {:?}\n",
+                        self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
+                        self.registers.f.zero,
+                        self.registers.f.subtract,
+                        self.registers.f.half_carry,
+                        self.registers.f.carry,
+                        &instruction,
+                    );
+            sender.send(log_message).unwrap();
+        }
         self.pc
     }
 }
