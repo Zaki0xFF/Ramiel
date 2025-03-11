@@ -2,6 +2,10 @@
 pub const VRAM_BEGIN: usize = 0x8000;
 pub const VRAM_END: usize = 0x9FFF;
 pub const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
+pub const LCDC: u16 = 0xFF40;
+pub const STAT: u16 = 0xFF41;
+pub const LY: u16 = 0xFF44;
+pub const LYC: u16 = 0xFF45;
 
 #[derive(Copy, Clone)]
 enum TilePixelValue {
@@ -19,6 +23,12 @@ fn empty_tile() -> Tile {
 pub struct GPU {
     vram: [u8; VRAM_SIZE],
     tile_set: [Tile; 384],
+    pub scx: u8,  // Scroll X
+    pub scy: u8,  // SCroll Y
+    pub ly: u8,   //LCD Y-Coordinate
+    pub lyc: u8,  // LY Compare
+    pub lcdc: u8, // LCD Control
+    pub stat: u8, // LCDC Status
 }
 
 impl GPU {
@@ -26,6 +36,12 @@ impl GPU {
         GPU {
             vram: [0; VRAM_SIZE],
             tile_set: [empty_tile(); 384],
+            scx: 0,
+            scy: 0,
+            ly: 0,
+            lyc: 0,
+            lcdc: 0,
+            stat: 0,
         }
     }
 

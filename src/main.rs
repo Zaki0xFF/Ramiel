@@ -15,6 +15,9 @@ use std::thread::{self};
 use std::time::Duration;
 
 fn main() {
+    pub const SCREEN_WIDTH: usize = 160;
+    pub const SCREEN_HEIGHT: usize = 144;
+
     env_logger::builder().filter_level(LevelFilter::Info).init();
     let (log_sender, log_receiver) = mpsc::channel();
     let path = Path::new("./roms/dmg_boot.bin");
@@ -52,7 +55,9 @@ fn main() {
             let mut state = render_cpu.lock().unwrap();
             let framebuffer = state.bus.gpu.render_screen();
             drop(state);
-            window.update_with_buffer(&framebuffer, 160, 144).unwrap();
+            window
+                .update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT)
+                .unwrap();
             thread::sleep(Duration::from_millis(16));
         }
         exit(0);
