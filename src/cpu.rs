@@ -17,7 +17,7 @@ pub struct CPU {
 
 #[allow(dead_code)]
 pub struct MemoryBus {
-    memory: [u8; 0xFFFF + 1],
+    pub memory: [u8; 0xFFFF + 1],
     pub gpu: GPU,
 }
 
@@ -27,16 +27,52 @@ impl MemoryBus {
         let address = address as usize;
         match address {
             VRAM_BEGIN..=VRAM_END => self.gpu.read_vram(address - VRAM_BEGIN),
+            0xFF44 => self.gpu.ly,
             _ => self.memory[address as usize],
         }
     }
 
     #[inline(always)]
     pub fn write_byte(&mut self, address: u16, value: u8) {
-        let address = address as usize;
-        match address {
-            VRAM_BEGIN..=VRAM_END => self.gpu.write_vram(address - VRAM_BEGIN, value),
-            _ => self.memory[address as usize] = value,
+        match address as usize {
+            // VRAM
+            VRAM_BEGIN..=VRAM_END => {
+                self.gpu.write_vram(address as usize - VRAM_BEGIN, value);
+                self.memory[address as usize] = value;
+            },
+            
+            // GPU Registers
+            0xFF40 => { // LCDC
+                self.memory[address as usize] = value;
+                self.gpu.lcdc = value;
+            },
+            0xFF41 => { // STAT
+                self.memory[address as usize] = value;
+                self.gpu.stat = value;
+            },
+            0xFF42 => { // SCY
+                self.memory[address as usize] = value;
+                self.gpu.scy = value;
+            },
+            0xFF43 => { // SCX
+                self.memory[address as usize] = value;
+                self.gpu.scx = value;
+            },
+            0xFF44 => { // LY
+                self.memory[address as usize] = value;
+                self.gpu.ly = value;
+            },
+            0xFF45 => { // LYC
+                self.memory[address as usize] = value;
+                self.gpu.lyc = value;
+            },
+            0xFF47 => { // BGP
+                self.memory[address as usize] = value;
+                self.gpu.bgp = value;
+            },
+            _ => {
+                self.memory[address as usize] = value;
+            }
         }
     }
 
@@ -797,6 +833,7 @@ impl CPU {
                     );
             sender.send(log_message).unwrap();
         }
+        //self.bus.gpu.step(4); todo: add proper timing
         self.pc
     }
 }

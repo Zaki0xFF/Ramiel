@@ -29,9 +29,34 @@ pub struct GPU {
     pub lyc: u8,  // LY Compare
     pub lcdc: u8, // LCD Control
     pub stat: u8, // LCDC Status
+    mode_clock: u32,
+    pub bgp: u8,  // Background Palette
 }
 
 impl GPU {
+    pub fn step(&mut self, cycles: u32) -> u8 {
+        self.mode_clock += cycles;
+        
+        // Each scanline takes ~456 cycles
+        if self.mode_clock >= 456 {
+            self.mode_clock -= 456;
+            
+            // Move to next scanline
+            self.ly = (self.ly + 1) % 154;
+            
+            // Debug print when reaching VBlank
+            if self.ly == 144 {
+                println!("Reached VBlank (LY=144)");
+            }
+            
+            // Return LY so CPU can update memory
+            return self.ly;
+        }
+        
+        // No update
+        return self.ly;
+    }
+
     pub fn new() -> Self {
         GPU {
             vram: [0; VRAM_SIZE],
@@ -42,6 +67,8 @@ impl GPU {
             lyc: 0,
             lcdc: 0,
             stat: 0,
+            mode_clock: 0,
+            bgp: 0xE4,
         }
     }
 
@@ -79,6 +106,10 @@ impl GPU {
 
     pub fn render_screen(&mut self) -> Vec<u32> {
         let mut framebuffer = vec![0u32; 160 * 144];
+        
+        if self.lcdc & 0x80 == 0 {
+            return framebuffer;
+        }
 
         for y in 0..144 {
             for x in 0..160 {
