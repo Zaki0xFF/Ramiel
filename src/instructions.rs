@@ -38,7 +38,6 @@ pub enum Instruction {
     RLA(),
     RLCA(),
     RRCA(),
-    RRLA(),
     DI(),
     EI(),
 
