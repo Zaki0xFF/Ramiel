@@ -13,7 +13,7 @@ pub struct CPU {
     pub bus: MemoryBus,
     is_halted: bool,
     log_sender: Option<Sender<String>>,
-    pub cycle_count: u64,
+    pub cycle_count: u16,
 }
 
 #[allow(dead_code)]
@@ -163,7 +163,7 @@ impl CPU {
         Ok(cpu)
     }
 
-    fn get_instruction_cycles(&self, instruction: &Instruction) -> u8 {
+    fn get_instruction_cycles(&self, instruction: &Instruction) -> u16 {
         match instruction {
             Instruction::ADC(target) => {
                 match target {
@@ -1125,7 +1125,9 @@ impl CPU {
                     );
             sender.send(log_message).unwrap();
         }
-        self.bus.gpu.step(self.get_instruction_cycles(&instruction).into());
+        let cycles = self.get_instruction_cycles(&instruction);
+        self.cycle_count = cycles;
+        self.bus.gpu.step(self.cycle_count);
         self.pc
     }
 }

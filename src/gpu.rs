@@ -29,25 +29,25 @@ pub struct GPU {
     pub lyc: u8,  // LY Compare
     pub lcdc: u8, // LCD Control
     pub stat: u8, // LCDC Status
-    mode_clock: u32,
-    pub bgp: u8,  // Background Palette
+    mode_clock: u16,
+    pub bgp: u8, // Background Palette
 }
 
 impl GPU {
-    pub fn step(&mut self, cycles: u32) -> u8 {
+    pub fn step(&mut self, cycles: u16) -> u8 {
         self.mode_clock += cycles;
-        
+
         // Each scanline takes ~456 cycles
         if self.mode_clock >= 456 {
             self.mode_clock -= 456;
-            
+
             // Move to next scanline
             self.ly = (self.ly + 1) % 154;
-            
+
             // Return LY so CPU can update memory
             return self.ly;
         }
-        
+
         // No update
         return self.ly;
     }
@@ -100,32 +100,60 @@ impl GPU {
     }
 
     pub fn render_screen(&mut self) -> Vec<u32> {
+        const SCREEN_WIDTH: usize = 160;
+        const SCREEN_HEIGHT: usize = 144;
+
         let mut framebuffer = vec![0u32; 160 * 144];
-        
+
         if self.lcdc & 0x80 == 0 {
             return framebuffer;
         }
+        for y in 0..SCREEN_HEIGHT {
+            for x in 0..SCREEN_WIDTH {
+                // Apply scroll values with wrapping
+                let scrolled_y = (y + self.scy as usize) & 0xFF;
 
-        for y in 0..144 {
-            for x in 0..160 {
                 let tile_x = x / 8;
-                let tile_y = y / 8;
+                let tile_y = scrolled_y / 8;
                 let pixel_x = x % 8;
-                let pixel_y = y % 8;
+                let pixel_y = scrolled_y % 8;
 
-                let tile_index = tile_y * 20 + tile_x;
-                let pixel_value = self.tile_set[tile_index][pixel_y][pixel_x];
+                // Updated Nintendo logo rendering logic with better horizontal centering
+                let logo_width = 12; // Width in tiles
+                let screen_width_tiles = 20; // Screen width in tiles (160/8)
+                let center_x = (screen_width_tiles - logo_width) / 2; // Center point = 4
 
-                let color = match pixel_value {
-                    TilePixelValue::Zero => 0xFFFFFFFF,  // White
-                    TilePixelValue::One => 0xAAAAAAFF,   // Light gray
-                    TilePixelValue::Two => 0x555555FF,   // Dark gray
-                    TilePixelValue::Three => 0x000000FF, // Black
+                let tile_index = if tile_y >= 8
+                    && tile_y < 10
+                    && tile_x >= center_x
+                    && tile_x < center_x + logo_width
+                {
+                    let row = tile_y - 8;
+                    let col = tile_x - center_x;
+
+                    1 + row * 12 + col
+                } else if tile_y == 9 && tile_x == center_x + logo_width {
+                    // Registered trademark symbol - position right after the logo
+                    25
+                } else {
+                    0
                 };
 
-                framebuffer[y * 160 + x] = color;
+                if tile_index < self.tile_set.len() {
+                    let pixel_value = self.tile_set[tile_index][pixel_y][pixel_x];
+
+                    let color = match pixel_value {
+                        TilePixelValue::Zero => 0xFFFFFFFF,  // White
+                        TilePixelValue::One => 0xAAAAAAFF,   // Light gray
+                        TilePixelValue::Two => 0x555555FF,   // Dark gray
+                        TilePixelValue::Three => 0x000000FF, // Black
+                    };
+
+                    framebuffer[y * 160 + x] = color;
+                }
             }
         }
+
         framebuffer
     }
 }
