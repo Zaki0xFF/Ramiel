@@ -123,10 +123,43 @@ impl Default for CPU {
 }
 
 impl CPU {
+    pub fn new_bootrom(path: &Path, log_sender: Sender<String>) -> std::io::Result<Self> {
+        let mut cpu = CPU::default();
+        cpu.bus.load_rom(path).unwrap();
+        cpu.log_sender = Some(log_sender);
+        let nintendo_logo = [
+            0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83,
+            0x00, 0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E,
+            0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63,
+            0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
+        ];
+
+        // Place Nintendo logo at 0x0104-0x0133
+        for (i, &byte) in nintendo_logo.iter().enumerate() {
+            cpu.bus.memory[0x0104 + i] = byte;
+        }
+        Ok(cpu)
+    }
+
     pub fn new_with_rom(path: &Path, log_sender: Sender<String>) -> std::io::Result<Self> {
         let mut cpu = CPU::default();
         cpu.bus.load_rom(path).unwrap();
         cpu.log_sender = Some(log_sender);
+        cpu.pc = 0x100;
+        cpu.sp = 0xFFFE;
+        cpu.registers.a = 0x11;
+        cpu.registers.f = FlagsRegister {
+            zero: true,
+            subtract: false,
+            half_carry: false,
+            carry: false,
+        };
+        cpu.registers.b = 0x00;
+        cpu.registers.c = 0x00;
+        cpu.registers.d = 0xFF;
+        cpu.registers.e = 0x56;
+        cpu.registers.h = 0x00;
+        cpu.registers.l = 0x0D;
         Ok(cpu)
     }
 
@@ -245,6 +278,7 @@ impl CPU {
                 match (target, source) {
                     (Target::MemoryR16(_), Target::Register(_)) => 2,
                     (Target::Register(_), Target::MemoryR16(_)) => 2,
+                    (Target::Register(_), Target::Register16(_)) => 2,
 
                     _ => panic!("Invalid LDI instruction cycle count target: {:?}, source: {:?}", target, source),
                 }
@@ -497,7 +531,7 @@ impl CPU {
         }
     }
 
-    fn push(&mut self, value: u16) {
+    pub fn push(&mut self, value: u16) {
         if self.sp < 2 {
             panic!("Stack overflow");
         }
@@ -506,7 +540,7 @@ impl CPU {
         self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
     }
 
-    fn pop(&mut self) -> u16 {
+    pub fn pop(&mut self) -> u16 {
         if self.sp > 0xFFFD {
             panic!("Stack underflow");
         }

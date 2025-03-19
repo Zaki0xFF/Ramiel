@@ -44,11 +44,6 @@ impl GPU {
             // Move to next scanline
             self.ly = (self.ly + 1) % 154;
             
-            // Debug print when reaching VBlank
-            if self.ly == 144 {
-                println!("Reached VBlank (LY=144)");
-            }
-            
             // Return LY so CPU can update memory
             return self.ly;
         }
