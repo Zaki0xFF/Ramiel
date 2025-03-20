@@ -40,37 +40,44 @@ impl MemoryBus {
             VRAM_BEGIN..=VRAM_END => {
                 self.gpu.write_vram(address as usize - VRAM_BEGIN, value);
                 self.memory[address as usize] = value;
-            },
-            
+            }
+
             // GPU Registers
-            0xFF40 => { // LCDC
+            0xFF40 => {
+                // LCDC
                 self.memory[address as usize] = value;
                 self.gpu.lcdc = value;
-            },
-            0xFF41 => { // STAT
+            }
+            0xFF41 => {
+                // STAT
                 self.memory[address as usize] = value;
                 self.gpu.stat = value;
-            },
-            0xFF42 => { // SCY
+            }
+            0xFF42 => {
+                // SCY
                 self.memory[address as usize] = value;
                 self.gpu.scy = value;
-            },
-            0xFF43 => { // SCX
+            }
+            0xFF43 => {
+                // SCX
                 self.memory[address as usize] = value;
                 self.gpu.scx = value;
-            },
-            0xFF44 => { // LY
+            }
+            0xFF44 => {
+                // LY
                 self.memory[address as usize] = value;
                 self.gpu.ly = value;
-            },
-            0xFF45 => { // LYC
+            }
+            0xFF45 => {
+                // LYC
                 self.memory[address as usize] = value;
                 self.gpu.lyc = value;
-            },
-            0xFF47 => { // BGP
+            }
+            0xFF47 => {
+                // BGP
                 self.memory[address as usize] = value;
                 self.gpu.bgp = value;
-            },
+            }
             _ => {
                 self.memory[address as usize] = value;
             }
@@ -128,10 +135,10 @@ impl CPU {
         cpu.bus.load_rom(path).unwrap();
         cpu.log_sender = Some(log_sender);
         let nintendo_logo = [
-            0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83,
-            0x00, 0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E,
-            0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63,
-            0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
+            0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C,
+            0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6,
+            0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC,
+            0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E,
         ];
 
         // Place Nintendo logo at 0x0104-0x0133
@@ -165,14 +172,12 @@ impl CPU {
 
     fn get_instruction_cycles(&self, instruction: &Instruction) -> u16 {
         match instruction {
-            Instruction::ADC(target) => {
-                match target {
-                    Target::Const8() => 2,
-                    Target::Register(_) => 1,
-                    Target::MemoryR16(_) => 2,
-                    _ => 1,
-                }
-            }
+            Instruction::ADC(target) => match target {
+                Target::Const8() => 2,
+                Target::Register(_) => 1,
+                Target::MemoryR16(_) => 2,
+                _ => 1,
+            },
             Instruction::ADD(target, source) => {
                 match (target, source) {
                     (Target::Register(_), Target::Register(_)) => 1,
@@ -184,241 +189,222 @@ impl CPU {
                     // (Target::Register16(_), Target::Offset8()) => 4,
                     _ => panic!("Invalid ADD instruction instruction cycle count target: {:?}, source: {:?}", target, source),
                 }
+            }
+            Instruction::AND(target, source) => match (target, source) {
+                (Target::Register(_), Target::Register(_)) => 1,
+                (Target::Register(_), Target::MemoryR16(_)) => 2,
+                (Target::Register(_), Target::Const8()) => 2,
+                _ => 1,
             },
-            Instruction::AND(target, source) => {
-                match (target, source) {
-                    (Target::Register(_), Target::Register(_)) => 1,
-                    (Target::Register(_), Target::MemoryR16(_)) => 2,
-                    (Target::Register(_), Target::Const8()) => 2,
-                    _ => 1,
+            Instruction::BIT(_, target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 3,
+                _ => 1,
+            },
+            Instruction::CALL(condition, _) => match condition {
+                JumpCondition::Always => 6,
+                _ => {
+                    if self.get_jcondition_value(*condition) {
+                        6
+                    } else {
+                        3
+                    }
                 }
-            }
-            Instruction::BIT(_, target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 3,
-                    _ => 1,
-                }
-            }
-            Instruction::CALL(condition, _) => {
-                match condition {
-                    JumpCondition::Always => 6,
-                    _ => if self.get_jcondition_value(*condition) { 6 } else { 3 }
-                }
-            }
+            },
             Instruction::CCF() => 1,
-            Instruction::CP(target) => {
-                match target {
-                    Target::Register(_) => 1,
-                    Target::MemoryR16(_) => 2,
-                    Target::Const8() => 2,
-                    _ => 1,
-                }
-            }
+            Instruction::CP(target) => match target {
+                Target::Register(_) => 1,
+                Target::MemoryR16(_) => 2,
+                Target::Const8() => 2,
+                _ => 1,
+            },
             Instruction::CPL() => 1,
-            Instruction::DEC(target) => {
-                match target {
-                    Target::Register(_) => 1,
-                    Target::MemoryR16(_) => 3,
-                    Target::Register16(_) => 2,
-                    _ => 1,
-                }
-            }
+            Instruction::DEC(target) => match target {
+                Target::Register(_) => 1,
+                Target::MemoryR16(_) => 3,
+                Target::Register16(_) => 2,
+                _ => 1,
+            },
             Instruction::DI() => 1,
             Instruction::EI() => 1,
-            Instruction::INC(target) => {
-                match target {
-                    Target::Register(_) => 1,
-                    Target::MemoryR16(_) => 3,
-                    Target::Register16(_) => 2,
-                    _ => 1,
-                }
-            }
-            Instruction::JP(condition, _) => {
-                match condition {
-                    JumpCondition::Always => 4,
-                    _ => if self.get_jcondition_value(*condition) { 4 } else { 3 }
+            Instruction::INC(target) => match target {
+                Target::Register(_) => 1,
+                Target::MemoryR16(_) => 3,
+                Target::Register16(_) => 2,
+                _ => 1,
+            },
+            Instruction::JP(condition, _) => match condition {
+                JumpCondition::Always => 4,
+                _ => {
+                    if self.get_jcondition_value(*condition) {
+                        4
+                    } else {
+                        3
+                    }
                 }
             },
             Instruction::JPHL(_) => 1,
-            Instruction::JR(condition) => {
-                match condition {
-                    JumpCondition::Always => 3,
-                    _ => if self.get_jcondition_value(*condition) { 3 } else { 2 }
+            Instruction::JR(condition) => match condition {
+                JumpCondition::Always => 3,
+                _ => {
+                    if self.get_jcondition_value(*condition) {
+                        3
+                    } else {
+                        2
+                    }
                 }
             },
-            Instruction::LD(target, source) => {
-                match (target, source) {
-                    (Target::Register(_), Target::Register(_)) => 1,
-                    (Target::Register(_), Target::Const8()) => 2,
-                    (Target::Register16(_), Target::Const16()) => 3,
-                    (Target::MemoryR16(_), Target::Register(_)) => 2,
-                    (Target::MemoryR16(_), Target::Const8()) => 3,
-                    (Target::Register(_), Target::MemoryR16(_)) => 2,
-                    (Target::Register16(_), Target::Register(_)) => 2,
-                    (Target::MemoryConst16(), Target::Register(_)) => 4,
-                    (Target::MemoryConst16(), Target::Register16(_)) => 5,
-                    (Target::Register16(_), Target::Register16(_)) => 2,
-                    _ => panic!("Invalid LD instruction cycle count target: {:?}, source: {:?}", target, source),
-                }
+            Instruction::LD(target, source) => match (target, source) {
+                (Target::Register(_), Target::Register(_)) => 1,
+                (Target::Register(_), Target::Const8()) => 2,
+                (Target::Register16(_), Target::Const16()) => 3,
+                (Target::MemoryR16(_), Target::Register(_)) => 2,
+                (Target::MemoryR16(_), Target::Const8()) => 3,
+                (Target::Register(_), Target::MemoryR16(_)) => 2,
+                (Target::Register16(_), Target::Register(_)) => 2,
+                (Target::MemoryConst16(), Target::Register(_)) => 4,
+                (Target::MemoryConst16(), Target::Register16(_)) => 5,
+                (Target::Register16(_), Target::Register16(_)) => 2,
+                _ => panic!(
+                    "Invalid LD instruction cycle count target: {:?}, source: {:?}",
+                    target, source
+                ),
             },
             Instruction::LDHLSP() => 3,
-            Instruction::LDH(target, source) => {
-                match (target, source) {
-                    (LDHRegister::MemoryConst16(_), LDHRegister::ArithmeticTarget) => 3,
-                    (LDHRegister::ArithmeticTarget, LDHRegister::MemoryConst16(_)) => 3,
-                    (LDHRegister::ArithmeticTarget, LDHRegister::C) => 2,
-                    (LDHRegister::C, LDHRegister::ArithmeticTarget) => 2,
-                    (LDHRegister::MemA8, LDHRegister::ArithmeticTarget) => 2,
-                    (LDHRegister::ArithmeticTarget, LDHRegister::MemA8) => 2,
-                    _ => panic!("Invalid LDH instruction cycle count target: {:?}, source: {:?}", target, source),
-                }
-            }
-            Instruction::LDI(target, source) => {
-                match (target, source) {
-                    (Target::MemoryR16(_), Target::Register(_)) => 2,
-                    (Target::Register(_), Target::MemoryR16(_)) => 2,
-                    (Target::Register(_), Target::Register16(_)) => 2,
+            Instruction::LDH(target, source) => match (target, source) {
+                (LDHRegister::MemoryConst16(_), LDHRegister::ArithmeticTarget) => 3,
+                (LDHRegister::ArithmeticTarget, LDHRegister::MemoryConst16(_)) => 3,
+                (LDHRegister::ArithmeticTarget, LDHRegister::C) => 2,
+                (LDHRegister::C, LDHRegister::ArithmeticTarget) => 2,
+                (LDHRegister::MemA8, LDHRegister::ArithmeticTarget) => 2,
+                (LDHRegister::ArithmeticTarget, LDHRegister::MemA8) => 2,
+                _ => panic!(
+                    "Invalid LDH instruction cycle count target: {:?}, source: {:?}",
+                    target, source
+                ),
+            },
+            Instruction::LDI(target, source) => match (target, source) {
+                (Target::MemoryR16(_), Target::Register(_)) => 2,
+                (Target::Register(_), Target::MemoryR16(_)) => 2,
+                (Target::Register(_), Target::Register16(_)) => 2,
 
-                    _ => panic!("Invalid LDI instruction cycle count target: {:?}, source: {:?}", target, source),
-                }
-            }
-            Instruction::LDD(target, source) => {
-                match (target, source) {
-                    (Target::MemoryR16(_), Target::Register(_)) => 2,
-                    (Target::Register(_), Target::MemoryR16(_)) => 2,
-                    _ => panic!("Invalid LDD instruction cycle count target: {:?}, source: {:?}", target, source),
-                }
-            }
+                _ => panic!(
+                    "Invalid LDI instruction cycle count target: {:?}, source: {:?}",
+                    target, source
+                ),
+            },
+            Instruction::LDD(target, source) => match (target, source) {
+                (Target::MemoryR16(_), Target::Register(_)) => 2,
+                (Target::Register(_), Target::MemoryR16(_)) => 2,
+                _ => panic!(
+                    "Invalid LDD instruction cycle count target: {:?}, source: {:?}",
+                    target, source
+                ),
+            },
             Instruction::NOP() => 1,
-            Instruction::OR(target, source) => {
-                match (target, source) {
-                    (Target::Register(_), Target::Register(_)) => 1,
-                    (Target::Register(_), Target::MemoryR16(_)) => 2,
-                    (Target::Register(_), Target::Const8()) => 2,
-                    _ => 1,
-                }
-            }
+            Instruction::OR(target, source) => match (target, source) {
+                (Target::Register(_), Target::Register(_)) => 1,
+                (Target::Register(_), Target::MemoryR16(_)) => 2,
+                (Target::Register(_), Target::Const8()) => 2,
+                _ => 1,
+            },
             Instruction::POPAF() => 3,
-            Instruction::POP(target) => {
-                match target {
-                    Target::Register16(_) => 3,
-                    _ => panic!("Invalid POP instruction cycle count target: {:?}", target),
-                }
-            }
+            Instruction::POP(target) => match target {
+                Target::Register16(_) => 3,
+                _ => panic!("Invalid POP instruction cycle count target: {:?}", target),
+            },
             Instruction::PUSHAF() => 4,
-            Instruction::PUSH(target) => {
-                match target {
-                    Target::Register16(_) => 4,
-                    _ => panic!("Invalid PUSH instruction cycle count target: {:?}", target),
+            Instruction::PUSH(target) => match target {
+                Target::Register16(_) => 4,
+                _ => panic!("Invalid PUSH instruction cycle count target: {:?}", target),
+            },
+            Instruction::RES(_, target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid RES instruction cycle count target: {:?}", target),
+            },
+            Instruction::RET(condition) => match condition {
+                JumpCondition::Always => 4,
+                _ => {
+                    if self.get_jcondition_value(*condition) {
+                        5
+                    } else {
+                        2
+                    }
                 }
-            }
-            Instruction::RES(_, target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid RES instruction cycle count target: {:?}", target),
-                }
-            }
-            Instruction::RET(condition) => {
-                match condition {
-                    JumpCondition::Always => 4,
-                    _ => if self.get_jcondition_value(*condition) { 5 } else { 2 }
-                }
-            }
+            },
             Instruction::RETI(_) => 4,
-            Instruction::RL(target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid RL instruction cycle count target: {:?}", target),
-                }
-            }
+            Instruction::RL(target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid RL instruction cycle count target: {:?}", target),
+            },
             Instruction::RLA() => 1,
-            Instruction::RLC(target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid RLC instruction cycle count target: {:?}", target),
-                }
-            }
+            Instruction::RLC(target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid RLC instruction cycle count target: {:?}", target),
+            },
             Instruction::RLCA() => 1,
-            Instruction::RR(target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid RR instruction cycle count target: {:?}", target),
-                }
-            }
+            Instruction::RR(target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid RR instruction cycle count target: {:?}", target),
+            },
             Instruction::RRA() => 1,
-            Instruction::RRC(target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid RRC instruction cycle count target: {:?}", target),
-                }
-            }
+            Instruction::RRC(target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid RRC instruction cycle count target: {:?}", target),
+            },
             Instruction::RRCA() => 1,
-            Instruction::SBC(target, source) => {
-                match (target, source) {
-                    (Target::Register(_), Target::Register(_)) => 1,
-                    (Target::Register(_), Target::MemoryR16(_)) => 2,
-                    (Target::Register(_), Target::Const8()) => 2,
-                    _ => panic!("Invalid SBC instruction cycle count target: {:?}, source: {:?}", target, source),
-                }
-            }
+            Instruction::SBC(target, source) => match (target, source) {
+                (Target::Register(_), Target::Register(_)) => 1,
+                (Target::Register(_), Target::MemoryR16(_)) => 2,
+                (Target::Register(_), Target::Const8()) => 2,
+                _ => panic!(
+                    "Invalid SBC instruction cycle count target: {:?}, source: {:?}",
+                    target, source
+                ),
+            },
             Instruction::SCF() => 1,
-            Instruction::SET(_, target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid SET instruction cycle count target: {:?}", target),
-                }
-            }
-            Instruction::SLA(target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid SLA instruction cycle count target: {:?}", target),
-                }
-            }
-            Instruction::SRA(target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid SRA instruction cycle count target: {:?}", target),
-                }
-            }
-            Instruction::SRL(target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid SRL instruction cycle count target: {:?}", target),
-                }
-            }
-            Instruction::SUB(target) => {
-                match target {
-                    Target::Register(_) => 1,
-                    Target::MemoryR16(_) => 2,
-                    Target::Const8() => 2,
-                    _ => panic!("Invalid SUB instruction cycle count target: {:?}", target),
-                }
-            }
-            Instruction::SWAP(target) => {
-                match target {
-                    Target::Register(_) => 2,
-                    Target::MemoryR16(_) => 4,
-                    _ => panic!("Invalid SWAP instruction cycle count target: {:?}", target),
-                }
-            }
-            Instruction::XOR(target, source) => {
-                match (target, source) {
-                    (Target::Register(_), Target::Register(_)) => 1,
-                    (Target::Register(_), Target::MemoryR16(_)) => 2,
-                    (Target::Register(_), Target::Const8()) => 2,
-                    _ => 1,
-                }
-            }
+            Instruction::SET(_, target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid SET instruction cycle count target: {:?}", target),
+            },
+            Instruction::SLA(target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid SLA instruction cycle count target: {:?}", target),
+            },
+            Instruction::SRA(target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid SRA instruction cycle count target: {:?}", target),
+            },
+            Instruction::SRL(target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid SRL instruction cycle count target: {:?}", target),
+            },
+            Instruction::SUB(target) => match target {
+                Target::Register(_) => 1,
+                Target::MemoryR16(_) => 2,
+                Target::Const8() => 2,
+                _ => panic!("Invalid SUB instruction cycle count target: {:?}", target),
+            },
+            Instruction::SWAP(target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid SWAP instruction cycle count target: {:?}", target),
+            },
+            Instruction::XOR(target, source) => match (target, source) {
+                (Target::Register(_), Target::Register(_)) => 1,
+                (Target::Register(_), Target::MemoryR16(_)) => 2,
+                (Target::Register(_), Target::Const8()) => 2,
+                _ => 1,
+            },
             Instruction::DAA() => 1,
             Instruction::HALT() => 0,
             Instruction::STOP() => 0,
@@ -1109,22 +1095,22 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
         }
-        if let Some(ref sender) = self.log_sender {
-            let log_message = format!(
-                        "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
-                        FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
-                        Instruction: {:?}\n
-                        LY: {:?}\n",
-                        self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
-                        self.registers.f.zero,
-                        self.registers.f.subtract,
-                        self.registers.f.half_carry,
-                        self.registers.f.carry,
-                        &instruction,
-                        self.bus.read_byte(0xFF44)
-                    );
-            sender.send(log_message).unwrap();
-        }
+        // if let Some(ref sender) = self.log_sender {
+        //     let log_message = format!(
+        //                 "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
+        //                 FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
+        //                 Instruction: {:?}\n
+        //                 LY: {:?}\n",
+        //                 self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
+        //                 self.registers.f.zero,
+        //                 self.registers.f.subtract,
+        //                 self.registers.f.half_carry,
+        //                 self.registers.f.carry,
+        //                 &instruction,
+        //                 self.bus.read_byte(0xFF44)
+        //             );
+        //     sender.send(log_message).unwrap();
+        // }
         let cycles = self.get_instruction_cycles(&instruction);
         self.cycle_count = cycles;
         self.bus.gpu.step(self.cycle_count);

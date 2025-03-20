@@ -1,17 +1,14 @@
-pub mod cpu;
-pub mod gpu;
-pub mod instructions;
-pub mod registers;
-mod unit_tests;
 use cpu::CPU;
-use log::info;
 use log::LevelFilter;
 use minifb::{Scale, Window, WindowOptions};
 use std::path::Path;
 use std::sync::mpsc::{self};
-use std::sync::{Arc, Mutex};
-use std::thread::{self};
-use std::time::Duration;
+
+mod cpu;
+mod gpu;
+mod instructions;
+mod registers;
+mod unit_tests;
 
 fn main() {
     pub const SCREEN_WIDTH: usize = 160;
@@ -20,8 +17,7 @@ fn main() {
     env_logger::builder().filter_level(LevelFilter::Info).init();
     let (log_sender, log_receiver) = mpsc::channel();
     let path = Path::new("./roms/dmg_boot.bin");
-    let cpu_state = Arc::new(Mutex::new(CPU::new_bootrom(path, log_sender).unwrap()));
-    let render_cpu = Arc::clone(&cpu_state);
+    let mut cpu = CPU::new_bootrom(path, log_sender).unwrap();
     let scale_factor = Scale::X4;
 
     let mut window = Window::new(
@@ -33,31 +29,34 @@ fn main() {
             ..WindowOptions::default()
         },
     )
-    .unwrap_or_else(|e| {
-        panic!("{}", e);
-    });
+    .unwrap();
 
-    thread::scope(move |s| {
-        s.spawn(move || loop {
-            let mut cpu = cpu_state.lock().unwrap();
+    // Bardzo ważne!!
+    window.set_target_fps(60);
+
+    while window.is_open() {
+        // Gameboy CPU runs at 4.194304MHz, czyli wykonuje mniej więcej 4194304
+        // cykli na sekundę. Zakładając 60fps, to 4194304 / 60 = 69905 cykli na
+        // pojedynczą klatkę.
+        let mut executed_cycles: u32 = 0;
+        loop {
             cpu.step();
-            drop(cpu);
-            std::thread::sleep(Duration::from_nanos(20));
-        });
-        s.spawn(move || {
-            while let Ok(log_message) = log_receiver.recv() {
-                info!("{}", log_message);
+            executed_cycles += cpu.cycle_count as u32;
+            if executed_cycles >= 69905 {
+                break;
             }
-            std::thread::sleep(Duration::from_secs(1));
-        });
-        while window.is_open() {
-            let mut state = render_cpu.lock().unwrap();
-            let framebuffer = state.bus.gpu.render_screen();
-            drop(state);
-            window
-                .update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT)
-                .unwrap();
-            thread::sleep(Duration::from_millis(16));
         }
-    });
+
+        let framebuffer = cpu.bus.gpu.render_screen();
+
+        window
+            .update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT)
+            .unwrap();
+
+        //// Debugging
+
+        // while let Ok(log_message) = log_receiver.recv() {
+        //     log::info!("{}", log_message);
+        // }
+    }
 }
