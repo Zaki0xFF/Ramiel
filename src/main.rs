@@ -1,8 +1,6 @@
 use cpu::CPU;
-use log::LevelFilter;
 use minifb::{Scale, Window, WindowOptions};
 use std::path::Path;
-use std::sync::mpsc::{self};
 
 mod cpu;
 mod gpu;
@@ -14,10 +12,12 @@ fn main() {
     pub const SCREEN_WIDTH: usize = 160;
     pub const SCREEN_HEIGHT: usize = 144;
 
-    env_logger::builder().filter_level(LevelFilter::Info).init();
-    let (log_sender, log_receiver) = mpsc::channel();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
+
     let path = Path::new("./roms/dmg_boot.bin");
-    let mut cpu = CPU::new_bootrom(path, log_sender).unwrap();
+    let mut cpu = CPU::new_bootrom(path).unwrap();
     let scale_factor = Scale::X4;
 
     let mut window = Window::new(
@@ -52,11 +52,5 @@ fn main() {
         window
             .update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT)
             .unwrap();
-
-        //// Debugging
-
-        // while let Ok(log_message) = log_receiver.recv() {
-        //     log::info!("{}", log_message);
-        // }
     }
 }

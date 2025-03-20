@@ -4,7 +4,6 @@ use crate::registers::*;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::sync::mpsc::Sender;
 
 pub struct CPU {
     pub registers: Registers,
@@ -12,7 +11,6 @@ pub struct CPU {
     pub sp: u16,
     pub bus: MemoryBus,
     is_halted: bool,
-    log_sender: Option<Sender<String>>,
     pub cycle_count: u16,
 }
 
@@ -123,17 +121,15 @@ impl Default for CPU {
                 gpu: GPU::new(),
             },
             is_halted: false,
-            log_sender: None,
             cycle_count: 0,
         }
     }
 }
 
 impl CPU {
-    pub fn new_bootrom(path: &Path, log_sender: Sender<String>) -> std::io::Result<Self> {
+    pub fn new_bootrom(path: &Path) -> std::io::Result<Self> {
         let mut cpu = CPU::default();
         cpu.bus.load_rom(path).unwrap();
-        cpu.log_sender = Some(log_sender);
         let nintendo_logo = [
             0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83, 0x00, 0x0C,
             0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6,
@@ -148,10 +144,9 @@ impl CPU {
         Ok(cpu)
     }
 
-    pub fn new_with_rom(path: &Path, log_sender: Sender<String>) -> std::io::Result<Self> {
+    pub fn new_with_rom(path: &Path) -> std::io::Result<Self> {
         let mut cpu = CPU::default();
         cpu.bus.load_rom(path).unwrap();
-        cpu.log_sender = Some(log_sender);
         cpu.pc = 0x100;
         cpu.sp = 0xFFFE;
         cpu.registers.a = 0x11;
@@ -1095,22 +1090,21 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
         }
-        // if let Some(ref sender) = self.log_sender {
-        //     let log_message = format!(
-        //                 "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
-        //                 FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
-        //                 Instruction: {:?}\n
-        //                 LY: {:?}\n",
-        //                 self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
-        //                 self.registers.f.zero,
-        //                 self.registers.f.subtract,
-        //                 self.registers.f.half_carry,
-        //                 self.registers.f.carry,
-        //                 &instruction,
-        //                 self.bus.read_byte(0xFF44)
-        //             );
-        //     sender.send(log_message).unwrap();
-        // }
+
+        // log::info!(
+        //     "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
+        //     FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
+        //     Instruction: {:?}\n
+        //     LY: {:?}\n",
+        //     self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
+        //     self.registers.f.zero,
+        //     self.registers.f.subtract,
+        //     self.registers.f.half_carry,
+        //     self.registers.f.carry,
+        //     &instruction,
+        //     self.bus.read_byte(0xFF44)
+        // );
+
         let cycles = self.get_instruction_cycles(&instruction);
         self.cycle_count = cycles;
         self.bus.gpu.step(self.cycle_count);
