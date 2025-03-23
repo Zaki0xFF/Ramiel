@@ -2,10 +2,6 @@
 pub const VRAM_BEGIN: usize = 0x8000;
 pub const VRAM_END: usize = 0x9FFF;
 pub const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
-pub const LCDC: u16 = 0xFF40;
-pub const STAT: u16 = 0xFF41;
-pub const LY: u16 = 0xFF44;
-pub const LYC: u16 = 0xFF45;
 
 #[derive(Copy, Clone)]
 enum TilePixelValue {
@@ -103,7 +99,7 @@ impl GPU {
         const SCREEN_WIDTH: usize = 160;
         const SCREEN_HEIGHT: usize = 144;
 
-        let mut framebuffer = vec![0u32; 160 * 144];
+        let mut framebuffer = vec![0u32; SCREEN_WIDTH * SCREEN_HEIGHT];
 
         if self.lcdc & 0x80 == 0 {
             return framebuffer;
@@ -149,7 +145,7 @@ impl GPU {
                         TilePixelValue::Three => 0x000000FF, // Black
                     };
 
-                    framebuffer[y * 160 + x] = color;
+                    framebuffer[y * SCREEN_WIDTH + x] = color;
                 }
             }
         }

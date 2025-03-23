@@ -31,13 +31,9 @@ fn main() {
     )
     .unwrap();
 
-    // Bardzo ważne!!
     window.set_target_fps(60);
-
     while window.is_open() {
-        // Gameboy CPU runs at 4.194304MHz, czyli wykonuje mniej więcej 4194304
-        // cykli na sekundę. Zakładając 60fps, to 4194304 / 60 = 69905 cykli na
-        // pojedynczą klatkę.
+        // Gameboy CPU runs at 4.194304MHz
         let mut executed_cycles: u32 = 0;
         loop {
             cpu.step();

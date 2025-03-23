@@ -69,7 +69,7 @@ impl Instruction {
             0x04 => Some(Instruction::RLC(Target::Register(ArithmeticTarget::H))),
             0x05 => Some(Instruction::RLC(Target::Register(ArithmeticTarget::L))),
             0x06 => Some(Instruction::RLC(Target::MemoryR16(DoubleTarget::HL))),
-            0x07 => Some(Instruction::RLC(Target::Register(ArithmeticTarget::A))),
+            0x07 => Some(Instruction::RLCA()),
             0x08 => Some(Instruction::RRC(Target::Register(ArithmeticTarget::B))),
             0x09 => Some(Instruction::RRC(Target::Register(ArithmeticTarget::C))),
             0x0A => Some(Instruction::RRC(Target::Register(ArithmeticTarget::D))),
@@ -359,7 +359,7 @@ impl Instruction {
                 Target::Register(ArithmeticTarget::C),
                 Target::Const8(),
             )),
-            0x0F => Some(Instruction::RRC(Target::Register(ArithmeticTarget::A))),
+            0x0F => Some(Instruction::RRCA()),
             0x10 => Some(Instruction::STOP()),
             0x11 => Some(Instruction::LD(
                 Target::Register16(DoubleTarget::DE),
@@ -393,7 +393,7 @@ impl Instruction {
                 Target::Register(ArithmeticTarget::E),
                 Target::Const8(),
             )),
-            0x1F => Some(Instruction::RR(Target::Register(ArithmeticTarget::A))),
+            0x1F => Some(Instruction::RRA()),
 
             0x20 => Some(Instruction::JR(JumpCondition::NotZero)),
             0x21 => Some(Instruction::LD(
