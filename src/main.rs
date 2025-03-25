@@ -1,6 +1,7 @@
 use cpu::CPU;
 use minifb::{Scale, Window, WindowOptions};
 use std::path::Path;
+use clap::{builder::Str, Parser};
 
 mod cpu;
 mod gpu;
@@ -8,16 +9,31 @@ mod instructions;
 mod registers;
 mod unit_tests;
 
+#[derive(Debug, Parser)]
+struct Args {
+    #[clap(short, long)]
+    ///Debug mode true = print debug info
+    debug_mode: bool,
+    ///Path to the ROM file
+    path: Option<String>,
+}
+
 fn main() {
     pub const SCREEN_WIDTH: usize = 160;
     pub const SCREEN_HEIGHT: usize = 144;
+
+    let args = Args::parse();
 
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .init();
 
-    let path = Path::new("./roms/dmg_boot.bin");
+    let path = Path::new(match &args.path {
+        Some(path) => path.as_str(),
+        None => "roms/dmg_boot.bin",
+    });
     let mut cpu = CPU::new_bootrom(path).unwrap();
+    cpu.debug_mode = args.debug_mode;
     let scale_factor = Scale::X4;
 
     let mut window = Window::new(

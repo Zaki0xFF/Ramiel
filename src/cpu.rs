@@ -12,6 +12,7 @@ pub struct CPU {
     pub bus: MemoryBus,
     is_halted: bool,
     pub cycle_count: u16,
+    pub debug_mode: bool,
 }
 
 #[allow(dead_code)]
@@ -122,6 +123,7 @@ impl Default for CPU {
             },
             is_halted: false,
             cycle_count: 0,
+            debug_mode: false,
         }
     }
 }
@@ -1091,19 +1093,21 @@ impl CPU {
             }
         }
 
-        // log::info!(
-        //     "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
-        //     FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
-        //     Instruction: {:?}\n
-        //     LY: {:?}\n",
-        //     self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
-        //     self.registers.f.zero,
-        //     self.registers.f.subtract,
-        //     self.registers.f.half_carry,
-        //     self.registers.f.carry,
-        //     &instruction,
-        //     self.bus.read_byte(0xFF44)
-        // );
+        if self.debug_mode {
+            log::info!(
+                "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
+                FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
+                Instruction: {:?}\n
+                LY: {:?}\n",
+                self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
+                self.registers.f.zero,
+                self.registers.f.subtract,
+                self.registers.f.half_carry,
+                self.registers.f.carry,
+                &instruction,
+                self.bus.read_byte(0xFF44)
+            );
+        }
 
         let cycles = self.get_instruction_cycles(&instruction);
         self.cycle_count = cycles;
