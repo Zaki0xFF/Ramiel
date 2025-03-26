@@ -1,10 +1,13 @@
 #![allow(unused_variables)]
+use std::fs::OpenOptions;
+use std::io::Write;
+
 pub const VRAM_BEGIN: usize = 0x8000;
 pub const VRAM_END: usize = 0x9FFF;
 pub const VRAM_SIZE: usize = VRAM_END - VRAM_BEGIN + 1;
 
-#[derive(Copy, Clone)]
-enum TilePixelValue {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TilePixelValue {
     Zero,
     One,
     Two,
@@ -104,6 +107,11 @@ impl GPU {
         if self.lcdc & 0x80 == 0 {
             return framebuffer;
         }
+
+        if self.scy == 0 {
+            self.dump_vram().unwrap();
+        };
+
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
                 // Apply scroll values with wrapping
@@ -151,5 +159,38 @@ impl GPU {
         }
 
         framebuffer
+    }
+
+    pub fn dump_vram(&self) -> std::io::Result<()> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open("vram_dump.txt")?;
+
+        writeln!(file, "Nintendo Logo VRAM Dump (tiles 1-25):")?;
+        writeln!(file, "Total logo tiles: 25")?;
+        writeln!(file)?;
+
+        // Only dump tiles 1-25 which contain the Nintendo logo
+        for tile in 1..=25 {
+            writeln!(file, "Tile {} (0x{:04X}):", tile, 0x8000 + tile * 16)?;
+            for row in 0..8 {
+                let offset = tile * 16 + row * 2;
+                let byte1 = self.vram[offset];
+                let byte2 = self.vram[offset + 1];
+                let binary1: String = format!("{:08b}", byte1).chars().map(|c| if c == '1' { '#' } else { '.' }).collect();
+                let binary2: String = format!("{:08b}", byte2).chars().map(|c| if c == '1' { '#' } else { '.' }).collect();
+                writeln!(file, "  Row {}: {:#02X} {:#02X}  {} {}", 
+                    row,
+                    byte1,
+                    byte2,
+                    binary1,
+                    binary2)?;
+            }
+            writeln!(file)?;
+        }
+
+        Ok(())
     }
 }
