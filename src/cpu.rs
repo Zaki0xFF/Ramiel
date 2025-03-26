@@ -146,7 +146,7 @@ impl CPU {
         Ok(cpu)
     }
 
-    pub fn new_with_rom(path: &Path) -> std::io::Result<Self> {
+    pub fn _new_with_rom(path: &Path) -> std::io::Result<Self> {
         let mut cpu = CPU::default();
         cpu.bus.load_rom(path).unwrap();
         cpu.pc = 0x100;

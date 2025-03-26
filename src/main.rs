@@ -1,7 +1,7 @@
 use cpu::CPU;
 use minifb::{Scale, Window, WindowOptions};
 use std::path::Path;
-use clap::{builder::Str, Parser};
+use clap::Parser;
 use std::io::{self, Write};
 
 mod cpu;
@@ -82,14 +82,6 @@ fn main() {
             }
 
             let framebuffer = cpu.bus.gpu.render_screen();
-            
-            // Dump VRAM when SCY=0 (logo is fully visible)
-            if cpu.bus.gpu.scy == 0 {
-                if let Err(e) = cpu.bus.gpu.dump_vram() {
-                    eprintln!("Failed to dump VRAM: {}", e);
-                }
-            }
-
             window.update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap();
         }
     }
