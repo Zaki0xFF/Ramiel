@@ -1,6 +1,6 @@
 use cpu::CPU;
 use minifb::{Scale, Window, WindowOptions};
-use std::path::Path;
+use std::path::PathBuf;
 use clap::Parser;
 use std::io::{self, Write};
 
@@ -13,13 +13,14 @@ mod unit_tests;
 #[derive(Debug, Parser)]
 struct Args {
     #[clap(short, long)]
-    ///Debug mode true = print debug info
-    debug_mode: bool,
+    /// Print debug info
+    debug: bool,
     #[clap(short, long)]
-    ///Step mode - execute one instruction at a time
+    /// Execute one instruction at a time
     step: bool,
-    ///Path to the ROM file
-    path: Option<String>,
+    /// Path to the ROM file
+    #[clap(default_value = "roms/dmg_boot.bin")]
+    path: PathBuf,
 }
 
 fn wait_for_keypress() {
@@ -39,12 +40,8 @@ fn main() {
         .filter_level(log::LevelFilter::Info)
         .init();
 
-    let path = Path::new(match &args.path {
-        Some(path) => path.as_str(),
-        None => "roms/dmg_boot.bin",
-    });
-    let mut cpu = CPU::new_bootrom(path).unwrap();
-    cpu.debug_mode = args.debug_mode;
+    let mut cpu = CPU::new_bootrom(&args.path).unwrap();
+    cpu.debug_mode = args.debug;
     let scale_factor = Scale::X4;
 
     let mut window = Window::new(
