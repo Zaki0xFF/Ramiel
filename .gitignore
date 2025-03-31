@@ -1,2 +1,5 @@
 /target
 todo.md
+vram_dump.txt
+launcher/target/
+../.vscode/
