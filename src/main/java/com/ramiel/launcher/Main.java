@@ -75,7 +75,7 @@ public class Main extends Application {
 
     private void loadRoms() {
         try {
-            Path romsDir = Paths.get(System.getProperty("user.dir")).getParent().resolve("roms");
+            Path romsDir = Paths.get(System.getProperty("user.dir")).resolve("roms");
             if (!Files.exists(romsDir)) Files.createDirectory(romsDir);
 
             Files.list(romsDir)
@@ -155,12 +155,11 @@ public class Main extends Application {
     private void launchRom(RomInfo rom) {
         try {
             Path romPath = Paths.get(System.getProperty("user.dir"))
-                .getParent()
                 .resolve("roms")
                 .resolve(rom.getFileName());
             
             new ProcessBuilder("cargo", "run", "--", romPath.toString())
-                .directory(Paths.get(System.getProperty("user.dir")).getParent().toFile())
+                .directory(Paths.get(System.getProperty("user.dir")).toFile())
                 .start();
         } catch (IOException e) {
             e.printStackTrace();
