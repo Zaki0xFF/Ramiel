@@ -31,8 +31,8 @@ fn wait_for_keypress() {
 }
 
 fn main() {
-    pub const SCREEN_WIDTH: usize = 160;
-    pub const SCREEN_HEIGHT: usize = 144;
+    pub const SCREEN_WIDTH: usize = 256;
+    pub const SCREEN_HEIGHT: usize = 256;
 
     let args = Args::parse();
 
@@ -42,12 +42,12 @@ fn main() {
 
     let mut cpu = CPU::new_bootrom(&args.path).unwrap();
     cpu.debug_mode = args.debug;
-    let scale_factor = Scale::X4;
+    let scale_factor = Scale::X2;
 
     let mut window = Window::new(
         "Game Boy Emulator",
-        160,
-        144,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
         WindowOptions {
             scale: scale_factor,
             ..WindowOptions::default()

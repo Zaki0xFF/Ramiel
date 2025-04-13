@@ -99,8 +99,8 @@ impl GPU {
     }
 
     pub fn render_screen(&mut self) -> Vec<u32> {
-        const SCREEN_WIDTH: usize = 160;
-        const SCREEN_HEIGHT: usize = 144;
+        const SCREEN_WIDTH: usize = 256;
+        const SCREEN_HEIGHT: usize = 256;
 
         let mut framebuffer = vec![0u32; SCREEN_WIDTH * SCREEN_HEIGHT];
 
@@ -108,9 +108,81 @@ impl GPU {
             return framebuffer;
         }
 
+        let tilemap_base = if self.lcdc & 0x08 != 0 {
+            0x9C00
+        } else {
+            0x9800
+        };
+
+        // Debug code
         if self.scy == 0 {
             self.dump_vram().unwrap();
         };
+
+        //self.render_tileset(&mut framebuffer);
+        self.render_tilemap(&mut framebuffer, tilemap_base);
+
+        framebuffer
+    }
+
+    pub fn render_tilemap(&mut self, framebuffer: &mut Vec<u32>, tilemap_base: usize) {
+        const SCREEN_WIDTH: usize = 256;
+        const SCREEN_HEIGHT: usize = 256;
+    
+        for y in 0..SCREEN_HEIGHT {
+            for x in 0..SCREEN_WIDTH {
+                // Apply scroll values with wrapping
+                let scrolled_x = (x + self.scx as usize) % 256;
+                let scrolled_y = (y + self.scy as usize) % 256;
+    
+                // Calculate tilemap coordinates
+                let tile_x = scrolled_x / 8 % 32;
+                let tile_y = scrolled_y / 8 % 32;
+    
+                // Calculate tilemap index
+                let tilemap_index = tilemap_base + (tile_y * 32) + tile_x;
+    
+                // Fetch the tile index from the tilemap
+                let tile_index = self.vram[tilemap_index - VRAM_BEGIN];
+
+                if tile_x == 5 && tile_y == 9{
+                    println!(
+                        "Tilemap Index: {:#X}, Tile Index: {:#X}, Tile X: {}, Tile Y: {}",
+                        tilemap_index, tile_index, tile_x, tile_y
+                    ); 
+                } 
+                // Determine tile data base address (0x8000 or 0x8800)
+                let tile_data_base = if self.lcdc & 0x10 != 0 { 0x8000 } else { 0x8800 };
+    
+                // Handle signed tile indices if using 0x8800-0x97FF
+                let tile_index = if tile_data_base == 0x8800 {
+                    ((tile_index as i8) as i16 + 128) as usize
+                } else {
+                    tile_index as usize
+                };
+    
+                // Fetch the pixel data from the tile
+                let pixel_x = scrolled_x % 8;
+                let pixel_y = scrolled_y % 8;
+                let pixel_value = self.tile_set[tile_index][pixel_y][pixel_x];
+    
+                // Map the pixel value to a color
+                let color = match pixel_value {
+                    TilePixelValue::Zero => 0xFFFFFFFF,  // White
+                    TilePixelValue::One => 0xAAAAAAFF,   // Light gray
+                    TilePixelValue::Two => 0x555555FF,   // Dark gray
+                    TilePixelValue::Three => 0x000000FF, // Black
+                };
+    
+                // Write the color to the framebuffer
+                framebuffer[y * SCREEN_WIDTH + x] = color;
+            }
+        }
+    }
+
+    pub fn render_tileset(&mut self, framebuffer: &mut Vec<u32>) {
+        const SCREEN_WIDTH: usize = 160;
+        const SCREEN_HEIGHT: usize = 144;
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
@@ -122,27 +194,7 @@ impl GPU {
                 let pixel_x = x % 8;
                 let pixel_y = scrolled_y % 8;
 
-                // Updated Nintendo logo rendering logic with better horizontal centering
-                let logo_width = 12; // Width in tiles
-                let screen_width_tiles = 20; // Screen width in tiles (160/8)
-                let center_x = (screen_width_tiles - logo_width) / 2; // Center point = 4
-
-                let tile_index = if tile_y >= 8
-                    && tile_y < 10
-                    && tile_x >= center_x
-                    && tile_x < center_x + logo_width
-                {
-                    let row = tile_y - 8;
-                    let col = tile_x - center_x;
-
-                    1 + row * 12 + col
-                } else if tile_y == 9 && tile_x == center_x + logo_width {
-                    // Registered trademark symbol - position right after the logo
-                    25
-                } else {
-                    0
-                };
-
+                let tile_index = tile_y * 20 + tile_x;
                 if tile_index < self.tile_set.len() {
                     let pixel_value = self.tile_set[tile_index][pixel_y][pixel_x];
 
@@ -157,38 +209,38 @@ impl GPU {
                 }
             }
         }
-
-        framebuffer
     }
 
     pub fn dump_vram(&self) -> std::io::Result<()> {
+        let file_path = "vram_dump.txt";
+        // Check if the file exists and is not empty
+        if let Ok(metadata) = std::fs::metadata(file_path) {
+            if metadata.len() > 0 {
+                // File is not empty, skip dumping
+                return Ok(());
+            }
+        }
         let mut file = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
             .open("vram_dump.txt")?;
 
-        writeln!(file, "Nintendo Logo VRAM Dump (tiles 1-25):")?;
-        writeln!(file, "Total logo tiles: 25")?;
-        writeln!(file)?;
+        writeln!(file, "VRAM Dump (0x8000-0x9FFF):")?;
 
-        // Only dump tiles 1-25 which contain the Nintendo logo
-        for tile in 1..=25 {
-            writeln!(file, "Tile {} (0x{:04X}):", tile, 0x8000 + tile * 16)?;
-            for row in 0..8 {
-                let offset = tile * 16 + row * 2;
-                let byte1 = self.vram[offset];
-                let byte2 = self.vram[offset + 1];
-                let binary1: String = format!("{:08b}", byte1).chars().map(|c| if c == '1' { '#' } else { '.' }).collect();
-                let binary2: String = format!("{:08b}", byte2).chars().map(|c| if c == '1' { '#' } else { '.' }).collect();
-                writeln!(file, "  Row {}: {:#02X} {:#02X}  {} {}", 
-                    row,
-                    byte1,
-                    byte2,
-                    binary1,
-                    binary2)?;
+        for (i, byte) in self.vram.iter().enumerate() {
+            // Write the address at the start of each row
+            if i % 16 == 0 {
+                write!(file, "0x{:04X}: ", VRAM_BEGIN + i)?;
             }
-            writeln!(file)?;
+
+            // Write the byte in hexadecimal format
+            write!(file, "{:02X} ", byte)?;
+
+            // Add a newline after every 16 bytes
+            if i % 16 == 15 {
+                writeln!(file)?;
+            }
         }
 
         Ok(())
