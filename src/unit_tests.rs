@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod instructions_unit {
     use crate::{cpu::*, instructions::*, registers::*};
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
     #[test]
     fn add() {
         //ADD A, r8
@@ -756,5 +759,48 @@ mod instructions_unit {
         ));
         assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
         assert_eq!(cpu.registers.get_hl(), 0x1233);
+    }
+
+    #[test]
+    fn test_vram_addressing_debug() {
+        // Clear the debug log before starting
+        let _ = std::fs::File::create("debug.log").expect("Failed to create debug log file");
+        
+        let mut cpu = CPU::default();
+        
+        // Add this message to debug.log
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("debug.log").unwrap();
+        writeln!(file, "==== VRAM ADDRESSING TEST STARTED ====").unwrap();
+        
+        // Test writing to the problematic regions
+        cpu.bus.write_byte(0x9910, 0x19);  // The key issue location
+        
+        // Test each instruction execution path
+        let hl_addr = 0x992F;
+        cpu.registers.set_hl(hl_addr);
+        cpu.registers.a = 0x18;
+        writeln!(file, "Before LDD (HL-),A: HL=0x{:04X}, A=0x{:02X}", 
+                 hl_addr, cpu.registers.a).unwrap();
+        
+        cpu.execute(Instruction::LDD(
+            Target::MemoryR16(DoubleTarget::HL),
+            Target::Register(ArithmeticTarget::A),
+        ));
+        
+        writeln!(file, "After LDD (HL-),A: HL=0x{:04X}, A=0x{:02X}, [0x{:04X}]=0x{:02X}", 
+                 cpu.registers.get_hl(), 
+                 cpu.registers.a, 
+                 hl_addr, 
+                 cpu.bus.read_byte(hl_addr)).unwrap();
+        
+        // Log the final state
+        writeln!(file, "==== VRAM ADDRESSING TEST COMPLETED ====").unwrap();
+        
+        // Verify the write was successful
+        assert_eq!(cpu.bus.read_byte(0x9910), 0x19, "Memory at 0x9910 should be 0x19");
+        assert_eq!(cpu.bus.read_byte(hl_addr), 0x18, "Memory at HL should be 0x18");
     }
 }

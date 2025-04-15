@@ -1,5 +1,6 @@
 /target
 todo.md
 vram_dump.txt
+debug.log
 launcher/target/
 ../.vscode/

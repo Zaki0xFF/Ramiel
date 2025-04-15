@@ -149,8 +149,9 @@ impl GPU {
                     println!(
                         "Tilemap Index: {:#X}, Tile Index: {:#X}, Tile X: {}, Tile Y: {}",
                         tilemap_index, tile_index, tile_x, tile_y
-                    ); 
-                } 
+                    );
+                    std::process::exit(0);
+                }
                 // Determine tile data base address (0x8000 or 0x8800)
                 let tile_data_base = if self.lcdc & 0x10 != 0 { 0x8000 } else { 0x8800 };
     

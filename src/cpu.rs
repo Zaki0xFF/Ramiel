@@ -4,6 +4,8 @@ use crate::registers::*;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 pub struct CPU {
     pub registers: Registers,
@@ -562,6 +564,22 @@ impl CPU {
 
     pub fn execute(&mut self, instruction: Instruction) -> u16 {
         let pc = self.pc;
+        
+        // // For LDD instructions, add detailed logging
+        // if self.pc >= 0x0c {match &instruction {
+        //     Instruction::LDD(target, source) => {
+        //         if let Ok(mut file) = OpenOptions::new()
+        //             .create(true)
+        //             .append(true)
+        //             .open("debug.log") {
+        //             let _ = writeln!(file, 
+        //                 "LDD Instruction at PC=0x{:04X}, target={:?}, source={:?}, HL=0x{:04X}, A=0x{:02X}",
+        //                 pc, target, source, self.registers.get_hl(), self.registers.a);
+        //         }
+        //     },
+        //     _ => {}
+        // }}
+        
         match instruction {
             Instruction::ADD(target, source) => {
                 let value: u16 = self.get_register_value(source);
@@ -1093,20 +1111,26 @@ impl CPU {
             }
         }
 
-        if self.debug_mode {
-            log::info!(
-                "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
-                FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
-                Instruction: {:?}\n
-                LY: {:?}\n",
-                self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
-                self.registers.f.zero,
-                self.registers.f.subtract,
-                self.registers.f.half_carry,
-                self.registers.f.carry,
-                &instruction,
-                self.bus.read_byte(0xFF44)
-            );
+        if self.pc > 0x0c {
+            if let Ok(mut file) = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("debug.log") {
+                let _ = writeln!(file, 
+                    "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
+                    FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
+                    Instruction: {:?}\n
+                    LY: {:?}",
+                    self.registers.a, self.registers.b, self.registers.c, self.registers.d, 
+                    self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
+                    self.registers.f.zero,
+                    self.registers.f.subtract,
+                    self.registers.f.half_carry,
+                    self.registers.f.carry,
+                    &instruction,
+                    self.bus.read_byte(0xFF44)
+                );
+            }
         }
 
         let cycles = self.get_instruction_cycles(&instruction);
