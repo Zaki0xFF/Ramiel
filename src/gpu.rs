@@ -99,8 +99,8 @@ impl GPU {
     }
 
     pub fn render_screen(&mut self) -> Vec<u32> {
-        const SCREEN_WIDTH: usize = 256;
-        const SCREEN_HEIGHT: usize = 256;
+        const SCREEN_WIDTH: usize = 160;
+        const SCREEN_HEIGHT: usize = 144;
 
         let mut framebuffer = vec![0u32; SCREEN_WIDTH * SCREEN_HEIGHT];
 
@@ -126,39 +126,26 @@ impl GPU {
     }
 
     pub fn render_tilemap(&mut self, framebuffer: &mut Vec<u32>, tilemap_base: usize) {
-        const SCREEN_WIDTH: usize = 256;
-        const SCREEN_HEIGHT: usize = 256;
+        const SCREEN_WIDTH: usize = 160;
+        const SCREEN_HEIGHT: usize = 144;
     
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
-                // Apply scroll values with wrapping
-                let scrolled_x = (x + self.scx as usize) % 256;
+                let scrolled_x = x; // hardcoded for now unexpected behaviour writes to scx 0x46
                 let scrolled_y = (y + self.scy as usize) % 256;
     
-                // Calculate tilemap coordinates
-                let tile_x = scrolled_x / 8 % 32;
-                let tile_y = scrolled_y / 8 % 32;
+                let tile_x = scrolled_x / 8;
+                let tile_y = scrolled_y / 8;
     
-                // Calculate tilemap index
                 let tilemap_index = tilemap_base + (tile_y * 32) + tile_x;
-    
-                // Fetch the tile index from the tilemap
-                let tile_index = self.vram[tilemap_index - VRAM_BEGIN];
-
-                if tile_x == 5 && tile_y == 9{
-                    println!(
-                        "Tilemap Index: {:#X}, Tile Index: {:#X}, Tile X: {}, Tile Y: {}",
-                        tilemap_index, tile_index, tile_x, tile_y
-                    ); 
-                } 
-                // Determine tile data base address (0x8000 or 0x8800)
+                let tile_index_val = self.vram[tilemap_index - VRAM_BEGIN];
                 let tile_data_base = if self.lcdc & 0x10 != 0 { 0x8000 } else { 0x8800 };
     
                 // Handle signed tile indices if using 0x8800-0x97FF
                 let tile_index = if tile_data_base == 0x8800 {
-                    ((tile_index as i8) as i16 + 128) as usize
+                    ((tile_index_val as i8) as i16 + 128) as usize
                 } else {
-                    tile_index as usize
+                    tile_index_val as usize
                 };
     
                 // Fetch the pixel data from the tile

@@ -442,9 +442,10 @@ impl CPU {
                 DoubleTarget::SP => self.bus.write_byte(self.sp, value as u8),
             },
             Target::MemoryConst16() => {
-                let address = self.bus.read_byte(self.pc.wrapping_add(1));
-                self.bus.write_byte(address as u16, value as u8);
-                self.pc = self.pc.wrapping_add(1);
+                let address_low = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
+                let address_high = self.bus.read_byte(self.pc.wrapping_add(2)) as u16;
+                let final_address = (address_high << 8) | address_low;
+                self.bus.write_byte(final_address, value as u8);
             }
             _ => {
                 panic!("Invalid target for set_register_value: {:?}", target)
@@ -497,8 +498,11 @@ impl CPU {
                 (high_byte << 8) | low_byte
             }
             Target::MemoryConst16() => {
-                let address = self.bus.read_byte(self.pc.wrapping_add(1));
-                self.bus.read_byte(address as u16) as u16
+                let address_low = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
+                let address_high = self.bus.read_byte(self.pc.wrapping_add(2)) as u16;
+                self.pc = self.pc.wrapping_add(2);
+                let final_address = (address_high << 8) | address_low;
+                self.bus.read_byte(final_address) as u16
             }
         };
         value
@@ -873,9 +877,28 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::LD(target, source) => {
+                let original_pc = self.pc;
                 let value: u16 = self.get_register_value(source);
                 self.set_register_value(value, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = original_pc; //TODO: Change this currently unoptimal
+                    
+                 match (target, source) {
+
+                        // 3-byte instructions:
+                        (Target::Register16(_), Target::Const16()) | (Target::MemoryConst16(), Target::Register(_)) | (_, Target::MemoryConst16()) => {
+                            self.pc = self.pc.wrapping_add(3);
+                        }
+
+                        // 2-byte instructions:
+                        (Target::Register(_), Target::Const8()) | (Target::MemoryR16(_), Target::Const8()) => {
+                            self.pc = self.pc.wrapping_add(2);
+                        }
+                        
+                        // 1-byte default:
+                        _ => {
+                            self.pc = self.pc.wrapping_add(1);
+                        }
+                    }
             }
             Instruction::NOP() => {
                 self.pc = self.pc.wrapping_add(1);
@@ -1065,19 +1088,14 @@ impl CPU {
                 self.bus.write_byte(self.sp, self.registers.a);
 
                 self.sp = self.sp.wrapping_sub(1);
-                let f_value = (self.registers.f.zero as u8) << 7
-                    | (self.registers.f.subtract as u8) << 6
-                    | (self.registers.f.half_carry as u8) << 5
-                    | (self.registers.f.carry as u8) << 4;
+                let f_value: u8 = self.registers.f.into();
                 self.bus.write_byte(self.sp, f_value);
 
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::POPAF() => {
-                self.registers.f.carry = self.bus.read_byte(self.sp) & 0x10 == 0x10;
-                self.registers.f.half_carry = self.bus.read_byte(self.sp) & 0x20 == 0x20;
-                self.registers.f.subtract = self.bus.read_byte(self.sp) & 0x40 == 0x40;
-                self.registers.f.zero = self.bus.read_byte(self.sp) & 0x80 == 0x80;
+                let f_value = self.bus.read_byte(self.sp);
+                self.registers.f = f_value.into();
                 self.sp = self.sp.wrapping_add(1);
 
                 self.registers.a = self.bus.read_byte(self.sp);
@@ -1098,14 +1116,14 @@ impl CPU {
                 "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
                 FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
                 Instruction: {:?}\n
-                LY: {:?}\n",
+                SCX: {:?}\n",
                 self.registers.a, self.registers.b, self.registers.c, self.registers.d, self.registers.e, self.registers.h, self.registers.l, self.sp, pc,
                 self.registers.f.zero,
                 self.registers.f.subtract,
                 self.registers.f.half_carry,
                 self.registers.f.carry,
                 &instruction,
-                self.bus.read_byte(0xFF44)
+                self.bus.gpu.scx,
             );
         }
 

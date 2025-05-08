@@ -3,6 +3,7 @@ const SUBTRACT_FLAG_BYTE_POSITION: u8 = 6;
 const HALF_CARRY_FLAG_BYTE_POSITION: u8 = 5;
 const CARRY_FLAG_BYTE_POSITION: u8 = 4;
 
+#[derive(Clone, Copy, Debug)]
 pub struct FlagsRegister {
     pub zero: bool,
     pub subtract: bool,
@@ -74,6 +75,8 @@ impl std::convert::From<FlagsRegister> for u8 {
             | (if flag.subtract { 1 } else { 0 }) << SUBTRACT_FLAG_BYTE_POSITION
             | (if flag.half_carry { 1 } else { 0 }) << HALF_CARRY_FLAG_BYTE_POSITION
             | (if flag.carry { 1 } else { 0 }) << CARRY_FLAG_BYTE_POSITION
+            // Low 4 bits are not used so clear them
+            & 0xF0
     }
 }
 

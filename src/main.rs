@@ -31,8 +31,8 @@ fn wait_for_keypress() {
 }
 
 fn main() {
-    pub const SCREEN_WIDTH: usize = 256;
-    pub const SCREEN_HEIGHT: usize = 256;
+    pub const SCREEN_WIDTH: usize = 160;
+    pub const SCREEN_HEIGHT: usize = 144;
 
     let args = Args::parse();
 
