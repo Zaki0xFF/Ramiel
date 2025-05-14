@@ -487,20 +487,16 @@ impl CPU {
                 DoubleTarget::SP => self.bus.memory[self.sp as usize] as u16,
             },
             Target::Const8() => {
-                let result = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
-                self.pc = self.pc.wrapping_add(1);
-                result
+                self.bus.read_byte(self.pc.wrapping_add(1)) as u16
             }
             Target::Const16() => {
                 let low_byte = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
                 let high_byte = self.bus.read_byte(self.pc.wrapping_add(2)) as u16;
-                self.pc = self.pc.wrapping_add(2);
                 (high_byte << 8) | low_byte
             }
             Target::MemoryConst16() => {
                 let address_low = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
                 let address_high = self.bus.read_byte(self.pc.wrapping_add(2)) as u16;
-                self.pc = self.pc.wrapping_add(2);
                 let final_address = (address_high << 8) | address_low;
                 self.bus.read_byte(final_address) as u16
             }
@@ -569,6 +565,13 @@ impl CPU {
         match instruction {
             Instruction::ADD(target, source) => {
                 let value: u16 = self.get_register_value(source);
+                let instr_len = match source {
+                    Target::Const8() => 2,
+                    Target::Register16(_) => 1,
+                    Target::Register(_) => 1,
+                    Target::MemoryR16(_) => 1,
+                    _ => panic!("Unsupported ADD source for length: {:?}", source),
+                };
                 match target {
                     Target::Register(_) => {
                         let value = value as u8;
@@ -594,10 +597,16 @@ impl CPU {
                         panic!("Invalid source for ADD instruction: {:?}", source);
                     }
                 }
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::ADC(target) => {
                 let value = self.get_register_value(target);
+                let instr_len = match target {
+                    Target::MemoryR16(_) => 2,
+                    Target::Register(_) => 1,
+                    Target::Const8() => 2,
+                    _ => panic!("Unsupported ADC source for length: {:?}", target),
+                };
                 match target {
                     Target::Const8() => {
                         let value = self.bus.read_byte(self.pc.wrapping_add(1));
@@ -640,21 +649,33 @@ impl CPU {
                         panic!("Invalid target for ADC instruction: {:?}", target);
                     }
                 }
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::SUB(target) => {
                 let value = self.get_register_value(target);
+                let instr_len = match target {
+                    Target::MemoryR16(_) => 2,
+                    Target::Register(_) => 1,
+                    Target::Const8() => 2,
+                    _ => panic!("Unsupported SUB source for length: {:?}", target),
+                };
                 let (new_value, did_overflow) = self.registers.a.overflowing_sub(value as u8);
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.carry = did_overflow;
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = (self.registers.a & 0xF) < (value as u8 & 0xF);
                 self.registers.a = new_value;
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::SBC(target, source) => {
                 let val = self.get_register_value(source);
                 let temp = self.get_register_value(target) as u8;
+                let instr_len = match target {
+                    Target::MemoryR16(_) => 1,
+                    Target::Register(_) => 1,
+                    Target::Const8() => 2,
+                    _ => panic!("Unsupported SBC source for length: {:?}", target),
+                };
                 let carry = if self.registers.f.carry { 1 } else { 0 };
                 let (new_value, did_overflow) = temp.overflowing_sub(val as u8 + carry);
                 self.registers.f.zero = new_value == 0;
@@ -662,23 +683,35 @@ impl CPU {
                 self.registers.f.carry = did_overflow;
                 self.registers.f.half_carry = (self.registers.a & 0xF) < (val as u8 & 0xF) + carry;
                 self.registers.a = new_value;
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::AND(target, source) => {
                 let value = self.get_register_value(source) as u8;
                 let val = self.get_register_value(target) as u8;
                 let new_value = val & value;
+                let instr_len = match target {
+                    Target::MemoryR16(_) => 1,
+                    Target::Register(_) => 1,
+                    Target::Const8() => 2,
+                    _ => panic!("Unsupported AND source for length: {:?}", target),
+                };
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = true;
                 self.registers.f.carry = false;
                 self.set_register_value(new_value as u16, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::OR(target, source) => {
                 let value = self.get_register_value(source) as u8;
                 let val = self.get_register_value(target) as u8;
                 let new_value = val | value;
+                let instr_len = match target {
+                    Target::MemoryR16(_) => 1,
+                    Target::Register(_) => 1,
+                    Target::Const8() => 2,
+                    _ => panic!("Unsupported OR source for length: {:?}", target),
+                };
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
@@ -690,21 +723,33 @@ impl CPU {
                 let value = self.get_register_value(source) as u8;
                 let val = self.get_register_value(target) as u8;
                 let new_value = val ^ value;
+                let instr_len = match target {
+                    Target::MemoryR16(_) => 1,
+                    Target::Register(_) => 1,
+                    Target::Const8() => 2,
+                    _ => panic!("Unsupported XOR source for length: {:?}", target),
+                };
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = false;
                 self.set_register_value(new_value as u16, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::CP(target) => {
                 let value = self.get_register_value(target) as u8;
                 let (new_value, did_overflow) = self.registers.a.overflowing_sub(value);
+                let instr_len = match target {
+                    Target::MemoryR16(_) => 2,
+                    Target::Register(_) => 1,
+                    Target::Const8() => 2,
+                    _ => panic!("Unsupported CP source for length: {:?}", target),
+                };
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = (self.registers.a & 0xF) < (value & 0xF);
                 self.registers.f.carry = did_overflow;
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::INC(target) => {
                 let value = self.get_register_value(target);
@@ -877,23 +922,17 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::LD(target, source) => {
-                let original_pc = self.pc;
                 let value: u16 = self.get_register_value(source);
-                self.set_register_value(value, target);
-                self.pc = original_pc; //TODO: Change this currently unoptimal
-                    
+                self.set_register_value(value, target);                    
                  match (target, source) {
-
                         // 3-byte instructions:
                         (Target::Register16(_), Target::Const16()) | (Target::MemoryConst16(), Target::Register(_)) | (_, Target::MemoryConst16()) => {
                             self.pc = self.pc.wrapping_add(3);
                         }
-
                         // 2-byte instructions:
                         (Target::Register(_), Target::Const8()) | (Target::MemoryR16(_), Target::Const8()) => {
                             self.pc = self.pc.wrapping_add(2);
                         }
-                        
                         // 1-byte default:
                         _ => {
                             self.pc = self.pc.wrapping_add(1);
@@ -1069,7 +1108,15 @@ impl CPU {
                         self.bus.write_byte(0xFF00 + address, value);
                     }
                 }
-                self.pc = self.pc.wrapping_add(1);
+                let instr_len = match (target, source) {
+                    (LDHRegister::MemoryConst16(_), LDHRegister::ArithmeticTarget) => 2,
+                    (LDHRegister::C, LDHRegister::ArithmeticTarget) => 1,
+                    (LDHRegister::ArithmeticTarget, LDHRegister::MemoryConst16(_)) => 2,
+                    (LDHRegister::ArithmeticTarget, LDHRegister::C) => 1,
+                    (LDHRegister::MemA8, _) => 1, // Possibly bad
+                    _ => panic!("Unsupported LDH len calc for target: {:?}, source: {:?}", target, source),
+                };
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::LDHLSP() => {
                 // LD HL,SP+e8
