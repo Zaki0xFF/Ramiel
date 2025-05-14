@@ -1113,7 +1113,8 @@ impl CPU {
                     (LDHRegister::C, LDHRegister::ArithmeticTarget) => 1,
                     (LDHRegister::ArithmeticTarget, LDHRegister::MemoryConst16(_)) => 2,
                     (LDHRegister::ArithmeticTarget, LDHRegister::C) => 1,
-                    (LDHRegister::MemA8, _) => 1, // Possibly bad
+                    (LDHRegister::ArithmeticTarget, LDHRegister::MemA8) => 1,
+                    (LDHRegister::MemA8, _) => 1,
                     _ => panic!("Unsupported LDH len calc for target: {:?}, source: {:?}", target, source),
                 };
                 self.pc = self.pc.wrapping_add(instr_len);
