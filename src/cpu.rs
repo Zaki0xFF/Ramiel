@@ -208,6 +208,7 @@ impl CPU {
                     }
                 }
             },
+            Instruction::RST(_) => 4,
             Instruction::CCF() => 1,
             Instruction::CP(target) => match target {
                 Target::Register(_) => 1,
@@ -717,7 +718,7 @@ impl CPU {
                 self.registers.f.half_carry = false;
                 self.registers.f.carry = false;
                 self.set_register_value(new_value as u16, target);
-                self.pc = self.pc.wrapping_add(1);
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::XOR(target, source) => {
                 let value = self.get_register_value(source) as u8;
@@ -1039,6 +1040,10 @@ impl CPU {
                 } else {
                     return self.pc.wrapping_add(3);
                 }
+            }
+            Instruction::RST(target) => {
+                self.push(self.pc.wrapping_add(1));
+                self.pc = target;
             }
             Instruction::RET(condition) => {
                 let jump = self.get_jcondition_value(condition);
