@@ -42,7 +42,7 @@ fn main() {
 
     let mut cpu = CPU::new_bootrom(&args.path).unwrap();
     cpu.debug_mode = args.debug;
-    let scale_factor = Scale::X2;
+    let scale_factor = Scale::X4;
 
     let mut window = Window::new(
         "Game Boy Emulator",
