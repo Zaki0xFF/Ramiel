@@ -973,9 +973,9 @@ impl Instruction {
 
     pub fn from_byte(byte: u8, prefixed: bool) -> Option<Instruction> {
         if prefixed {
-            return Instruction::from_prefixed_byte(byte);
+            Instruction::from_prefixed_byte(byte)
         } else {
-            return Instruction::match_byte(byte);
+            Instruction::match_byte(byte)
         }
     }
 }

@@ -48,7 +48,7 @@ impl GPU {
         }
 
         // No update
-        return self.ly;
+        self.ly
     }
 
     pub fn new() -> Self {
@@ -128,31 +128,35 @@ impl GPU {
     pub fn render_tilemap(&mut self, framebuffer: &mut Vec<u32>, tilemap_base: usize) {
         const SCREEN_WIDTH: usize = 160;
         const SCREEN_HEIGHT: usize = 144;
-    
+
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
                 let scrolled_x = x; // hardcoded for now unexpected behaviour writes to scx 0x46
                 let scrolled_y = (y + self.scy as usize) % 256;
-    
+
                 let tile_x = scrolled_x / 8;
                 let tile_y = scrolled_y / 8;
-    
+
                 let tilemap_index = tilemap_base + (tile_y * 32) + tile_x;
                 let tile_index_val = self.vram[tilemap_index - VRAM_BEGIN];
-                let tile_data_base = if self.lcdc & 0x10 != 0 { 0x8000 } else { 0x8800 };
-    
+                let tile_data_base = if self.lcdc & 0x10 != 0 {
+                    0x8000
+                } else {
+                    0x8800
+                };
+
                 // Handle signed tile indices if using 0x8800-0x97FF
                 let tile_index = if tile_data_base == 0x8800 {
                     ((tile_index_val as i8) as i16 + 128) as usize
                 } else {
                     tile_index_val as usize
                 };
-    
+
                 // Fetch the pixel data from the tile
                 let pixel_x = scrolled_x % 8;
                 let pixel_y = scrolled_y % 8;
                 let pixel_value = self.tile_set[tile_index][pixel_y][pixel_x];
-    
+
                 // Map the pixel value to a color
                 let color = match pixel_value {
                     TilePixelValue::Zero => 0xFFFFFFFF,  // White
@@ -160,7 +164,7 @@ impl GPU {
                     TilePixelValue::Two => 0x555555FF,   // Dark gray
                     TilePixelValue::Three => 0x000000FF, // Black
                 };
-    
+
                 // Write the color to the framebuffer
                 framebuffer[y * SCREEN_WIDTH + x] = color;
             }

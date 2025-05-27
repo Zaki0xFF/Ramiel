@@ -28,7 +28,7 @@ impl MemoryBus {
         match address {
             VRAM_BEGIN..=VRAM_END => self.gpu.read_vram(address - VRAM_BEGIN),
             0xFF44 => self.gpu.ly,
-            _ => self.memory[address as usize],
+            _ => self.memory[address],
         }
     }
 
@@ -487,9 +487,7 @@ impl CPU {
                 DoubleTarget::HL => self.bus.memory[self.registers.get_hl() as usize] as u16,
                 DoubleTarget::SP => self.bus.memory[self.sp as usize] as u16,
             },
-            Target::Const8() => {
-                self.bus.read_byte(self.pc.wrapping_add(1)) as u16
-            }
+            Target::Const8() => self.bus.read_byte(self.pc.wrapping_add(1)) as u16,
             Target::Const16() => {
                 let low_byte = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
                 let high_byte = self.bus.read_byte(self.pc.wrapping_add(2)) as u16;
@@ -528,9 +526,9 @@ impl CPU {
         if self.sp > 0xFFFD {
             panic!("Stack underflow");
         }
-        let value = (self.bus.read_byte(self.sp) as u16) << 8
-            | self.bus.read_byte(self.sp.wrapping_add(1)) as u16;
-        value
+
+        (self.bus.read_byte(self.sp) as u16) << 8
+            | self.bus.read_byte(self.sp.wrapping_add(1)) as u16
     }
 
     fn _jump(&mut self, address: u16) {
@@ -758,7 +756,7 @@ impl CPU {
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = (value & 0xF) == 0xF;
-                self.set_register_value(new_value as u16, target);
+                self.set_register_value(new_value, target);
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::DEC(target) => {
@@ -767,7 +765,7 @@ impl CPU {
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = true;
                 self.registers.f.half_carry = (value & 0xF) == 0xF;
-                self.set_register_value(new_value as u16, target);
+                self.set_register_value(new_value, target);
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::CCF() => {
@@ -834,7 +832,7 @@ impl CPU {
             }
             Instruction::SET(offset, target) => {
                 let value: u16 = self.get_register_value(target) | (1 << offset);
-                self.set_register_value(value as u16, target);
+                self.set_register_value(value, target);
                 self.registers.f.zero = false;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
@@ -858,7 +856,7 @@ impl CPU {
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
-                self.set_register_value(new_value as u16, target);
+                self.set_register_value(new_value, target);
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::RL(target) => {
@@ -869,7 +867,7 @@ impl CPU {
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
-                self.set_register_value(new_value as u16, target);
+                self.set_register_value(new_value, target);
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::RRC(target) => {
@@ -924,21 +922,24 @@ impl CPU {
             }
             Instruction::LD(target, source) => {
                 let value: u16 = self.get_register_value(source);
-                self.set_register_value(value, target);                    
-                 match (target, source) {
-                        // 3-byte instructions:
-                        (Target::Register16(_), Target::Const16()) | (Target::MemoryConst16(), Target::Register(_)) | (_, Target::MemoryConst16()) => {
-                            self.pc = self.pc.wrapping_add(3);
-                        }
-                        // 2-byte instructions:
-                        (Target::Register(_), Target::Const8()) | (Target::MemoryR16(_), Target::Const8()) => {
-                            self.pc = self.pc.wrapping_add(2);
-                        }
-                        // 1-byte default:
-                        _ => {
-                            self.pc = self.pc.wrapping_add(1);
-                        }
+                self.set_register_value(value, target);
+                match (target, source) {
+                    // 3-byte instructions:
+                    (Target::Register16(_), Target::Const16())
+                    | (Target::MemoryConst16(), Target::Register(_))
+                    | (_, Target::MemoryConst16()) => {
+                        self.pc = self.pc.wrapping_add(3);
                     }
+                    // 2-byte instructions:
+                    (Target::Register(_), Target::Const8())
+                    | (Target::MemoryR16(_), Target::Const8()) => {
+                        self.pc = self.pc.wrapping_add(2);
+                    }
+                    // 1-byte default:
+                    _ => {
+                        self.pc = self.pc.wrapping_add(1);
+                    }
+                }
             }
             Instruction::NOP() => {
                 self.pc = self.pc.wrapping_add(1);
@@ -1120,14 +1121,17 @@ impl CPU {
                     (LDHRegister::ArithmeticTarget, LDHRegister::C) => 1,
                     (LDHRegister::ArithmeticTarget, LDHRegister::MemA8) => 1,
                     (LDHRegister::MemA8, _) => 1,
-                    _ => panic!("Unsupported LDH len calc for target: {:?}, source: {:?}", target, source),
+                    _ => panic!(
+                        "Unsupported LDH len calc for target: {:?}, source: {:?}",
+                        target, source
+                    ),
                 };
                 self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::LDHLSP() => {
                 // LD HL,SP+e8
                 let sp = self.sp;
-                let offset = self.bus.read_byte(self.pc.wrapping_add(1) as u16) as i8;
+                let offset = self.bus.read_byte(self.pc.wrapping_add(1)) as i8;
                 let result = self.sp.wrapping_add(offset as u16);
                 self.registers.set_hl(result);
                 self.registers.f.zero = false;

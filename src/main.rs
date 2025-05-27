@@ -1,8 +1,8 @@
+use clap::Parser;
 use cpu::CPU;
 use minifb::{Scale, Window, WindowOptions};
-use std::path::PathBuf;
-use clap::Parser;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 mod cpu;
 mod gpu;
@@ -61,8 +61,10 @@ fn main() {
             // In step mode, execute one instruction and wait for key press
             cpu.step();
             let framebuffer = cpu.bus.gpu.render_screen();
-            window.update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap();
-            
+            window
+                .update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT)
+                .unwrap();
+
             if !window.is_open() {
                 break;
             }
@@ -79,7 +81,9 @@ fn main() {
             }
 
             let framebuffer = cpu.bus.gpu.render_screen();
-            window.update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT).unwrap();
+            window
+                .update_with_buffer(&framebuffer, SCREEN_WIDTH, SCREEN_HEIGHT)
+                .unwrap();
         }
     }
 }
