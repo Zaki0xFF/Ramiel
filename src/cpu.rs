@@ -183,7 +183,7 @@ impl CPU {
                     (Target::MemoryR16(_), Target::Register16(_)) => 2,
                     (Target::Register16(_), Target::Register16(_)) => 2,
                     (Target::Register16(_), Target::Const8()) => 3,
-                    // (Target::Register16(_), Target::Offset8()) => 4,
+                    (Target::Register(_), Target::Const8()) => 2,
                     _ => panic!("Invalid ADD instruction instruction cycle count target: {:?}, source: {:?}", target, source),
                 }
             }
@@ -263,6 +263,7 @@ impl CPU {
                 (Target::MemoryConst16(), Target::Register(_)) => 4,
                 (Target::MemoryConst16(), Target::Register16(_)) => 5,
                 (Target::Register16(_), Target::Register16(_)) => 2,
+                (Target::Register(_), Target::MemoryConst16()) => 3,
                 _ => panic!(
                     "Invalid LD instruction cycle count target: {:?}, source: {:?}",
                     target, source
@@ -427,21 +428,27 @@ impl CPU {
                 DoubleTarget::HL => self.registers.set_hl(value),
                 DoubleTarget::SP => self.sp = value,
             },
-            Target::MemoryR8(arithmetic_target) => match arithmetic_target {
-                ArithmeticTarget::A => self.bus.write_byte(self.registers.a as u16, value as u8),
-                ArithmeticTarget::B => self.bus.write_byte(self.registers.b as u16, value as u8),
-                ArithmeticTarget::C => self.bus.write_byte(self.registers.c as u16, value as u8),
-                ArithmeticTarget::D => self.bus.write_byte(self.registers.d as u16, value as u8),
-                ArithmeticTarget::E => self.bus.write_byte(self.registers.e as u16, value as u8),
-                ArithmeticTarget::H => self.bus.write_byte(self.registers.h as u16, value as u8),
-                ArithmeticTarget::L => self.bus.write_byte(self.registers.l as u16, value as u8),
-            },
-            Target::MemoryR16(double_target) => match double_target {
-                DoubleTarget::BC => self.bus.write_byte(self.registers.get_bc(), value as u8),
-                DoubleTarget::DE => self.bus.write_byte(self.registers.get_de(), value as u8),
-                DoubleTarget::HL => self.bus.write_byte(self.registers.get_hl(), value as u8),
-                DoubleTarget::SP => self.bus.write_byte(self.sp, value as u8),
-            },
+            Target::MemoryR8(arithmetic_target) => {
+                let address = match arithmetic_target {
+                    ArithmeticTarget::A => self.registers.a as u16,
+                    ArithmeticTarget::B => self.registers.b as u16,
+                    ArithmeticTarget::C => self.registers.c as u16,
+                    ArithmeticTarget::D => self.registers.d as u16,
+                    ArithmeticTarget::E => self.registers.e as u16,
+                    ArithmeticTarget::H => self.registers.h as u16,
+                    ArithmeticTarget::L => self.registers.l as u16,
+                };
+                self.bus.write_byte(address, value as u8);
+            }
+            Target::MemoryR16(double_target) => {
+                let address = match double_target {
+                    DoubleTarget::BC => self.registers.get_bc(),
+                    DoubleTarget::DE => self.registers.get_de(),
+                    DoubleTarget::HL => self.registers.get_hl(),
+                    DoubleTarget::SP => self.sp,
+                };
+                self.bus.write_byte(address, value as u8);
+            }
             Target::MemoryConst16() => {
                 let address_low = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
                 let address_high = self.bus.read_byte(self.pc.wrapping_add(2)) as u16;
@@ -472,21 +479,27 @@ impl CPU {
                 DoubleTarget::HL => self.registers.get_hl(),
                 DoubleTarget::SP => self.sp,
             },
-            Target::MemoryR8(arithmetic_target) => match arithmetic_target {
-                ArithmeticTarget::A => self.bus.memory[self.registers.a as usize] as u16,
-                ArithmeticTarget::B => self.bus.memory[self.registers.b as usize] as u16,
-                ArithmeticTarget::C => self.bus.memory[self.registers.c as usize] as u16,
-                ArithmeticTarget::D => self.bus.memory[self.registers.d as usize] as u16,
-                ArithmeticTarget::E => self.bus.memory[self.registers.e as usize] as u16,
-                ArithmeticTarget::H => self.bus.memory[self.registers.h as usize] as u16,
-                ArithmeticTarget::L => self.bus.memory[self.registers.l as usize] as u16,
-            },
-            Target::MemoryR16(double_target) => match double_target {
-                DoubleTarget::BC => self.bus.memory[self.registers.get_bc() as usize] as u16,
-                DoubleTarget::DE => self.bus.memory[self.registers.get_de() as usize] as u16,
-                DoubleTarget::HL => self.bus.memory[self.registers.get_hl() as usize] as u16,
-                DoubleTarget::SP => self.bus.memory[self.sp as usize] as u16,
-            },
+            Target::MemoryR8(arithmetic_target) => {
+                let address = match arithmetic_target {
+                    ArithmeticTarget::A => self.registers.a as u16,
+                    ArithmeticTarget::B => self.registers.b as u16,
+                    ArithmeticTarget::C => self.registers.c as u16,
+                    ArithmeticTarget::D => self.registers.d as u16,
+                    ArithmeticTarget::E => self.registers.e as u16,
+                    ArithmeticTarget::H => self.registers.h as u16,
+                    ArithmeticTarget::L => self.registers.l as u16,
+                };
+                self.bus.read_byte(address) as u16
+            }
+            Target::MemoryR16(double_target) => {
+                let address = match double_target {
+                    DoubleTarget::BC => self.registers.get_bc(),
+                    DoubleTarget::DE => self.registers.get_de(),
+                    DoubleTarget::HL => self.registers.get_hl(),
+                    DoubleTarget::SP => self.sp,
+                };
+                self.bus.read_byte(address) as u16
+            }
             Target::Const8() => self.bus.read_byte(self.pc.wrapping_add(1)) as u16,
             Target::Const16() => {
                 let low_byte = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
@@ -527,8 +540,10 @@ impl CPU {
             panic!("Stack underflow");
         }
 
-        (self.bus.read_byte(self.sp) as u16) << 8
-            | self.bus.read_byte(self.sp.wrapping_add(1)) as u16
+        let ret = (self.bus.read_byte(self.sp) as u16) << 8
+            | self.bus.read_byte(self.sp.wrapping_add(1)) as u16;
+        self.sp = self.sp.wrapping_add(2);
+        ret
     }
 
     fn _jump(&mut self, address: u16) {
@@ -688,11 +703,11 @@ impl CPU {
                 let value = self.get_register_value(source) as u8;
                 let val = self.get_register_value(target) as u8;
                 let new_value = val & value;
-                let instr_len = match target {
+                let instr_len = match source {
                     Target::MemoryR16(_) => 1,
                     Target::Register(_) => 1,
                     Target::Const8() => 2,
-                    _ => panic!("Unsupported AND source for length: {:?}", target),
+                    _ => panic!("Unsupported AND source for length: {:?}", source),
                 };
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
@@ -705,11 +720,11 @@ impl CPU {
                 let value = self.get_register_value(source) as u8;
                 let val = self.get_register_value(target) as u8;
                 let new_value = val | value;
-                let instr_len = match target {
+                let instr_len = match source {
                     Target::MemoryR16(_) => 1,
                     Target::Register(_) => 1,
                     Target::Const8() => 2,
-                    _ => panic!("Unsupported OR source for length: {:?}", target),
+                    _ => panic!("Unsupported OR source for length: {:?}", source),
                 };
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
@@ -722,11 +737,11 @@ impl CPU {
                 let value = self.get_register_value(source) as u8;
                 let val = self.get_register_value(target) as u8;
                 let new_value = val ^ value;
-                let instr_len = match target {
+                let instr_len = match source {
                     Target::MemoryR16(_) => 1,
                     Target::Register(_) => 1,
                     Target::Const8() => 2,
-                    _ => panic!("Unsupported XOR source for length: {:?}", target),
+                    _ => panic!("Unsupported XOR source for length: {:?}", source),
                 };
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
@@ -750,14 +765,39 @@ impl CPU {
                 self.registers.f.carry = did_overflow;
                 self.pc = self.pc.wrapping_add(instr_len);
             }
-            Instruction::INC(target) => {
-                let value = self.get_register_value(target);
-                let (new_value, _did_overflow) = value.overflowing_add(1);
-                self.registers.f.zero = new_value == 0;
-                self.registers.f.subtract = false;
-                self.registers.f.half_carry = (value & 0xF) == 0xF;
-                self.set_register_value(new_value, target);
-                self.pc = self.pc.wrapping_add(1);
+            Instruction::INC(target) => { //Changme this is hacky way to handle INC for different targets
+                let instr_len = 1;
+
+                match target {
+                    Target::Register(arithmetic_target) => {
+                        let reg_val_u8 = self.get_register_value(Target::Register(arithmetic_target)) as u8;
+                        let (new_val_u8, _overflow) = reg_val_u8.overflowing_add(1);
+                        self.registers.f.zero = new_val_u8 == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.half_carry = (reg_val_u8 & 0x0F) == 0x0F;
+                        self.set_register_value(new_val_u8 as u16, Target::Register(arithmetic_target));
+                    }
+                    Target::MemoryR16(double_target @ DoubleTarget::HL) => {
+                        let address = self.get_register_value(Target::Register16(double_target));
+                        let mem_val_u8 = self.bus.read_byte(address);
+                        let (new_val_u8, _overflow) = mem_val_u8.overflowing_add(1);
+                        self.registers.f.zero = new_val_u8 == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.half_carry = (mem_val_u8 & 0x0F) == 0x0F;
+                        self.bus.write_byte(address, new_val_u8);
+                    }
+                    Target::Register16(double_target) => {
+                        let reg16_val = self.get_register_value(Target::Register16(double_target));
+                        let new_val_u16 = reg16_val.wrapping_add(1);
+                        self.set_register_value(new_val_u16, Target::Register16(double_target));
+                    }
+                    _ => {
+                        let value = self.get_register_value(target); 
+                        let (new_value, _did_overflow) = value.overflowing_add(1);
+                        self.set_register_value(new_value, target);
+                    }
+                }
+                self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::DEC(target) => {
                 let value = self.get_register_value(target);

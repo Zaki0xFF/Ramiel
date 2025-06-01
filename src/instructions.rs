@@ -420,7 +420,7 @@ impl Instruction {
             )),
             0x2A => Some(Instruction::LDI(
                 Target::Register(ArithmeticTarget::A),
-                Target::Register16(DoubleTarget::HL),
+                Target::MemoryR16(DoubleTarget::HL),
             )),
             0x2B => Some(Instruction::DEC(Target::Register16(DoubleTarget::HL))),
             0x2C => Some(Instruction::INC(Target::Register(ArithmeticTarget::L))),

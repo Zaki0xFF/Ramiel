@@ -1,6 +1,7 @@
 use clap::Parser;
 use cpu::CPU;
 use minifb::{Scale, Window, WindowOptions};
+use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
@@ -19,7 +20,7 @@ struct Args {
     /// Execute one instruction at a time
     step: bool,
     /// Path to the ROM file
-    #[clap(default_value = "roms/dmg_boot.bin")]
+    #[clap(default_value = "roms/01-special.gb")]
     path: PathBuf,
 }
 
@@ -31,16 +32,13 @@ fn wait_for_keypress() {
 }
 
 fn main() {
+    simple_logging::log_to_file("ramiel.log", log::LevelFilter::Info).unwrap();
     pub const SCREEN_WIDTH: usize = 160;
     pub const SCREEN_HEIGHT: usize = 144;
 
     let args = Args::parse();
 
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .init();
-
-    let mut cpu = CPU::new_bootrom(&args.path).unwrap();
+    let mut cpu = CPU::_new_with_rom(&args.path).unwrap();
     cpu.debug_mode = args.debug;
     let scale_factor = Scale::X4;
 
