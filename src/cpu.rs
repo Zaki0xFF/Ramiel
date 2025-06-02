@@ -21,8 +21,7 @@ pub struct MemoryBus {
     pub gpu: GPU,
 }
 
-impl MemoryBus {
-    #[inline(always)]
+impl MemoryBus {    #[inline(always)]
     pub fn read_byte(&self, address: u16) -> u8 {
         let address = address as usize;
         match address {
@@ -1052,19 +1051,14 @@ impl CPU {
                 } else {
                     self.pc = self.pc.wrapping_add(2);
                 }
-            }
-            Instruction::PUSH(target) => {
+            }            Instruction::PUSH(target) => {
                 let value = self.get_register_value(target);
-                self.sp = self.sp.wrapping_sub(2);
-                self.bus.write_byte(self.sp, (value >> 8) as u8);
-                self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
+                self.push(value);
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::POP(target) => {
-                let value = (self.bus.read_byte(self.sp) as u16) << 8
-                    | self.bus.read_byte(self.sp.wrapping_add(1)) as u16;
+                let value = self.pop();
                 self.set_register_value(value, target);
-                self.sp = self.sp.wrapping_add(2);
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::CALL(condition, address) => {
