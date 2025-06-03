@@ -530,8 +530,8 @@ impl CPU {
             panic!("Stack overflow");
         }
         self.sp = self.sp.wrapping_sub(2);
-        self.bus.write_byte(self.sp, (value >> 8) as u8);
-        self.bus.write_byte(self.sp.wrapping_add(1), value as u8);
+        self.bus.write_byte(self.sp, value as u8);
+        self.bus.write_byte(self.sp.wrapping_add(1), (value >> 8) as u8);
     }
 
     pub fn pop(&mut self) -> u16 {
@@ -539,8 +539,8 @@ impl CPU {
             panic!("Stack underflow");
         }
 
-        let ret = (self.bus.read_byte(self.sp) as u16) << 8
-            | self.bus.read_byte(self.sp.wrapping_add(1)) as u16;
+        let ret = self.bus.read_byte(self.sp) as u16
+            | (self.bus.read_byte(self.sp.wrapping_add(1)) as u16) << 8;
         self.sp = self.sp.wrapping_add(2);
         ret
     }

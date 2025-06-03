@@ -688,8 +688,8 @@ mod instructions_unit {
 
         cpu.registers.set_bc(0x1234);
         cpu.execute(Instruction::PUSH(Target::Register16(DoubleTarget::BC)));
-        assert_eq!(cpu.bus.read_byte(cpu.sp), 0x12);
-        assert_eq!(cpu.bus.read_byte(cpu.sp + 1), 0x34);
+        assert_eq!(cpu.bus.read_byte(cpu.sp), 0x34);
+        assert_eq!(cpu.bus.read_byte(cpu.sp + 1), 0x12);
         cpu.execute(Instruction::POP(Target::Register16(DoubleTarget::BC)));
         assert_eq!(cpu.registers.get_bc(), 0x1234);
     }
