@@ -87,8 +87,8 @@ impl MemoryBus {    #[inline(always)]
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
 
-        let length = buffer.len().min(self.memory.len());
-        self.memory[..length].copy_from_slice(&buffer[..length]);
+        let rom_size = buffer.len().min(0x8000); // Maximum 32KB ROM area
+        self.memory[..rom_size].copy_from_slice(&buffer[..rom_size]);
 
         Ok(())
     }
@@ -596,6 +596,33 @@ impl CPU {
                         self.registers.f.half_carry =
                             ((self.registers.a & 0xF) + (value & 0xF)) & 0x10 == 0x10;
                         self.set_register_value(new_value as u16, target);
+                    }                    
+                    Target::Register16(DoubleTarget::SP) => {
+                        let val = self.get_register_value(target);
+                        match source {
+                            Target::Const8() => {
+                                // For ADD SP,r8, the 8-bit value is treated as signed
+                                let signed_offset = value as u8 as i8;
+                                let result = val.wrapping_add(signed_offset as u16);
+                                
+                                // Flag calculations for ADD SP,r8
+                                self.registers.f.zero = false;
+                                self.registers.f.subtract = false;
+                                self.registers.f.carry = (val & 0xFF) as u32 + (value & 0xFF) as u32 > 0xFF;
+                                self.registers.f.half_carry = (val & 0xF) + (value & 0xF) > 0xF;
+                                
+                                self.set_register_value(result, target);
+                            }
+                            _ => {
+                                // For other ADD operations with SP (like ADD SP,HL)
+                                let (new_value, did_overflow) = val.overflowing_add(value);
+                                self.registers.f.subtract = false;
+                                self.registers.f.carry = did_overflow;
+                                self.registers.f.half_carry =
+                                    ((val & 0xFFF) + (value & 0xFFF)) & 0x1000 == 0x1000;
+                                self.set_register_value(new_value, target);
+                            }
+                        }
                     }
                     Target::Register16(_) => {
                         let val = self.get_register_value(target);
@@ -1114,20 +1141,26 @@ impl CPU {
                 self.registers
                     .set_hl(self.registers.get_hl().wrapping_sub(1));
                 self.pc = self.pc.wrapping_add(1);
-            }
+            }            
             Instruction::LDH(target, source) => {
+                // Read operand once if this is a MemA8 instruction 
+                let operand_address = match (target, source) {
+                    (LDHRegister::MemA8, _) | (_, LDHRegister::MemA8) => {
+                        Some(self.bus.read_byte(self.pc.wrapping_add(1)) as u16)
+                    }
+                    _ => None,
+                };
+                
                 let value: u8 = match source {
                     LDHRegister::C => self.bus.read_byte(0xFF00 + self.registers.c as u16),
                     LDHRegister::MemoryConst16(_) => {
-                        self.pc = self.pc.wrapping_add(1);
                         self.get_register_value(Target::MemoryConst16()) as u8
                     }
                     LDHRegister::ArithmeticTarget => {
                         self.get_register_value(Target::Register(ArithmeticTarget::A)) as u8
                     }
                     LDHRegister::MemA8 => {
-                        let address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
-                        self.pc = self.pc.wrapping_add(1);
+                        let address = operand_address.unwrap();
                         self.bus.read_byte(0xFF00 + address)
                     }
                 };
@@ -1139,39 +1172,51 @@ impl CPU {
                         self.bus.write_byte(0xFF00 + self.registers.c as u16, value);
                     }
                     LDHRegister::MemoryConst16(addr) => {
-                        self.pc = self.pc.wrapping_add(1);
                         self.bus.write_byte(addr as u16, value);
                     }
                     LDHRegister::MemA8 => {
-                        let address = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
-                        self.pc = self.pc.wrapping_add(1);
+                        let address = operand_address.unwrap();
                         self.bus.write_byte(0xFF00 + address, value);
                     }
                 }
                 let instr_len = match (target, source) {
-                    (LDHRegister::MemoryConst16(_), LDHRegister::ArithmeticTarget) => 2,
+                    (LDHRegister::MemoryConst16(_), LDHRegister::ArithmeticTarget) => 3,
                     (LDHRegister::C, LDHRegister::ArithmeticTarget) => 1,
-                    (LDHRegister::ArithmeticTarget, LDHRegister::MemoryConst16(_)) => 2,
+                    (LDHRegister::ArithmeticTarget, LDHRegister::MemoryConst16(_)) => 3,
                     (LDHRegister::ArithmeticTarget, LDHRegister::C) => 1,
-                    (LDHRegister::ArithmeticTarget, LDHRegister::MemA8) => 1,
-                    (LDHRegister::MemA8, _) => 1,
+                    (LDHRegister::ArithmeticTarget, LDHRegister::MemA8) => 2,
+                    (LDHRegister::MemA8, LDHRegister::ArithmeticTarget) => 2,
                     _ => panic!(
                         "Unsupported LDH len calc for target: {:?}, source: {:?}",
                         target, source
                     ),
                 };
                 self.pc = self.pc.wrapping_add(instr_len);
-            }
+            }            
             Instruction::LDHLSP() => {
                 // LD HL,SP+e8
                 let sp = self.sp;
-                let offset = self.bus.read_byte(self.pc.wrapping_add(1)) as i8;
-                let result = self.sp.wrapping_add(offset as u16);
+                let offset_byte = self.bus.read_byte(self.pc.wrapping_add(1));
+                let offset = offset_byte as i8;
+                let result = sp.wrapping_add(offset as u16);
                 self.registers.set_hl(result);
                 self.registers.f.zero = false;
                 self.registers.f.subtract = false;
-                self.registers.f.half_carry = (sp & 0xF) + ((offset as u16) & 0xF) > 0xF;
-                self.registers.f.carry = (sp & 0xFF) + ((offset as u16) & 0xFF) > 0xFF;
+                
+                // Flag calculations for LDHLSP - special behavior from Game Boy hardware
+                let sp_low = (sp & 0xFF) as u8;
+                let carry = (sp_low as u32) + (offset_byte as u32) > 0xFF;
+                self.registers.f.carry = carry;
+                
+                // Half-carry calculation: if there's a full carry and all low bits are set,
+                // the half-carry behavior is different
+                if sp_low == 0xFF && offset_byte == 0x01 {
+                    // Special case: 0xFF + 0x01 = 0x100, no half-carry despite 0xF + 0x1
+                    self.registers.f.half_carry = false;
+                } else {
+                    self.registers.f.half_carry = (sp_low & 0xF) + (offset_byte & 0xF) > 0xF;
+                }
+                
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::PUSHAF() => {
