@@ -128,7 +128,7 @@ impl Default for CPU {
 }
 
 impl CPU {
-    pub fn new_bootrom(path: &Path) -> std::io::Result<Self> {
+    pub fn _new_bootrom(path: &Path) -> std::io::Result<Self> {
         let mut cpu = CPU::default();
         cpu.bus.load_rom(path).unwrap();
         let nintendo_logo = [
@@ -270,8 +270,6 @@ impl CPU {
             },
             Instruction::LDHLSP() => 3,
             Instruction::LDH(target, source) => match (target, source) {
-                (LDHRegister::MemoryConst16(_), LDHRegister::ArithmeticTarget) => 3,
-                (LDHRegister::ArithmeticTarget, LDHRegister::MemoryConst16(_)) => 3,
                 (LDHRegister::ArithmeticTarget, LDHRegister::C) => 2,
                 (LDHRegister::C, LDHRegister::ArithmeticTarget) => 2,
                 (LDHRegister::MemA8, LDHRegister::ArithmeticTarget) => 2,
@@ -427,18 +425,6 @@ impl CPU {
                 DoubleTarget::HL => self.registers.set_hl(value),
                 DoubleTarget::SP => self.sp = value,
             },
-            Target::MemoryR8(arithmetic_target) => {
-                let address = match arithmetic_target {
-                    ArithmeticTarget::A => self.registers.a as u16,
-                    ArithmeticTarget::B => self.registers.b as u16,
-                    ArithmeticTarget::C => self.registers.c as u16,
-                    ArithmeticTarget::D => self.registers.d as u16,
-                    ArithmeticTarget::E => self.registers.e as u16,
-                    ArithmeticTarget::H => self.registers.h as u16,
-                    ArithmeticTarget::L => self.registers.l as u16,
-                };
-                self.bus.write_byte(address, value as u8);
-            }
             Target::MemoryR16(double_target) => {
                 let address = match double_target {
                     DoubleTarget::BC => self.registers.get_bc(),
@@ -478,18 +464,6 @@ impl CPU {
                 DoubleTarget::HL => self.registers.get_hl(),
                 DoubleTarget::SP => self.sp,
             },
-            Target::MemoryR8(arithmetic_target) => {
-                let address = match arithmetic_target {
-                    ArithmeticTarget::A => self.registers.a as u16,
-                    ArithmeticTarget::B => self.registers.b as u16,
-                    ArithmeticTarget::C => self.registers.c as u16,
-                    ArithmeticTarget::D => self.registers.d as u16,
-                    ArithmeticTarget::E => self.registers.e as u16,
-                    ArithmeticTarget::H => self.registers.h as u16,
-                    ArithmeticTarget::L => self.registers.l as u16,
-                };
-                self.bus.read_byte(address) as u16
-            }
             Target::MemoryR16(double_target) => {
                 let address = match double_target {
                     DoubleTarget::BC => self.registers.get_bc(),
@@ -1153,9 +1127,6 @@ impl CPU {
                 
                 let value: u8 = match source {
                     LDHRegister::C => self.bus.read_byte(0xFF00 + self.registers.c as u16),
-                    LDHRegister::MemoryConst16(_) => {
-                        self.get_register_value(Target::MemoryConst16()) as u8
-                    }
                     LDHRegister::ArithmeticTarget => {
                         self.get_register_value(Target::Register(ArithmeticTarget::A)) as u8
                     }
@@ -1171,18 +1142,13 @@ impl CPU {
                     LDHRegister::C => {
                         self.bus.write_byte(0xFF00 + self.registers.c as u16, value);
                     }
-                    LDHRegister::MemoryConst16(addr) => {
-                        self.bus.write_byte(addr as u16, value);
-                    }
                     LDHRegister::MemA8 => {
                         let address = operand_address.unwrap();
                         self.bus.write_byte(0xFF00 + address, value);
                     }
                 }
                 let instr_len = match (target, source) {
-                    (LDHRegister::MemoryConst16(_), LDHRegister::ArithmeticTarget) => 3,
                     (LDHRegister::C, LDHRegister::ArithmeticTarget) => 1,
-                    (LDHRegister::ArithmeticTarget, LDHRegister::MemoryConst16(_)) => 3,
                     (LDHRegister::ArithmeticTarget, LDHRegister::C) => 1,
                     (LDHRegister::ArithmeticTarget, LDHRegister::MemA8) => 2,
                     (LDHRegister::MemA8, LDHRegister::ArithmeticTarget) => 2,

@@ -171,7 +171,7 @@ impl GPU {
         }
     }
 
-    pub fn render_tileset(&mut self, framebuffer: &mut Vec<u32>) {
+    pub fn _render_tileset(&mut self, framebuffer: &mut Vec<u32>) {
         const SCREEN_WIDTH: usize = 160;
         const SCREEN_HEIGHT: usize = 144;
 

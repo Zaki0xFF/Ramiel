@@ -46,7 +46,6 @@ pub enum ArithmeticTarget {
 pub enum Target {
     Register(ArithmeticTarget),
     Register16(DoubleTarget),
-    MemoryR8(ArithmeticTarget),
     MemoryR16(DoubleTarget),
     Const8(),
     Const16(),
@@ -65,7 +64,6 @@ pub enum DoubleTarget {
 pub enum LDHRegister {
     C,
     MemA8,
-    MemoryConst16(DoubleTarget),
     ArithmeticTarget,
 }
 

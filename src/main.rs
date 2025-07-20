@@ -1,7 +1,6 @@
 use clap::Parser;
 use cpu::CPU;
 use minifb::{Scale, Window, WindowOptions};
-use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
@@ -20,7 +19,7 @@ struct Args {
     /// Execute one instruction at a time
     step: bool,
     /// Path to the ROM file
-    #[clap(default_value = "roms/01-special.gb")]
+    #[clap(default_value = "roms/03-op sp,hl.gb")]
     path: PathBuf,
 }
 
