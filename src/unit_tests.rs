@@ -98,7 +98,7 @@ mod instructions_unit {
         cpu.registers.a = 3;
         cpu.registers.b = 255;
         cpu.execute(Instruction::ADC(Target::Register(ArithmeticTarget::B)));
-        assert_eq!(cpu.registers.a, 3);
+        assert_eq!(cpu.registers.a, 2);
         assert!(cpu.registers.f.carry);
     }
 
@@ -325,7 +325,6 @@ mod instructions_unit {
         cpu.registers.b = 0x02;
         cpu.registers.f.carry = true;
         cpu.execute(Instruction::SBC(
-            Target::Register(ArithmeticTarget::A),
             Target::Register(ArithmeticTarget::B),
         ));
         assert_eq!(cpu.registers.a, 0x00);
@@ -342,8 +341,7 @@ mod instructions_unit {
         cpu.bus.write_byte(0x1234, 0x02);
         cpu.registers.f.carry = true;
         cpu.execute(Instruction::SBC(
-            Target::Register(ArithmeticTarget::A),
-            Target::MemoryR16(DoubleTarget::HL),
+            Target::MemoryR16(DoubleTarget::HL)
         ));
         assert_eq!(cpu.registers.a, 0x00);
         assert!(cpu.registers.f.zero);

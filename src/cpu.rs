@@ -211,7 +211,7 @@ impl CPU {
             Instruction::CCF() => 1,
             Instruction::CP(target) => match target {
                 Target::Register(_) => 1,
-                Target::MemoryR16(_) => 2,
+                Target::MemoryR16(_) => 1,
                 Target::Const8() => 2,
                 _ => 1,
             },
@@ -354,13 +354,13 @@ impl CPU {
                 _ => panic!("Invalid RRC instruction cycle count target: {:?}", target),
             },
             Instruction::RRCA() => 1,
-            Instruction::SBC(target, source) => match (target, source) {
-                (Target::Register(_), Target::Register(_)) => 1,
-                (Target::Register(_), Target::MemoryR16(_)) => 2,
-                (Target::Register(_), Target::Const8()) => 2,
+            Instruction::SBC(target) => match target {
+                Target::Register(_) => 1,
+                Target::MemoryR16(_) => 1,
+                Target::Const8() => 2,
                 _ => panic!(
-                    "Invalid SBC instruction cycle count target: {:?}, source: {:?}",
-                    target, source
+                    "Invalid SBC instruction cycle count target: {:?}",
+                    target
                 ),
             },
             Instruction::SCF() => 1,
@@ -386,7 +386,7 @@ impl CPU {
             },
             Instruction::SUB(target) => match target {
                 Target::Register(_) => 1,
-                Target::MemoryR16(_) => 2,
+                Target::MemoryR16(_) => 1,
                 Target::Const8() => 2,
                 _ => panic!("Invalid SUB instruction cycle count target: {:?}", target),
             },
@@ -576,19 +576,22 @@ impl CPU {
                         match source {
                             Target::Const8() => {
                                 // For ADD SP,r8, the 8-bit value is treated as signed
-                                let signed_offset = value as u8 as i8;
+                                let offset_byte = value as u8;
+                                let signed_offset = offset_byte as i8;
                                 let result = val.wrapping_add(signed_offset as u16);
                                 
                                 // Flag calculations for ADD SP,r8
                                 self.registers.f.zero = false;
                                 self.registers.f.subtract = false;
-                                self.registers.f.carry = (val & 0xFF) as u32 + (value & 0xFF) as u32 > 0xFF;
-                                self.registers.f.half_carry = (val & 0xF) + (value & 0xF) > 0xF;
+                                
+                                let sp_low = (val & 0xFF) as u8;
+                                self.registers.f.carry = (sp_low as u32) + (offset_byte as u32) > 0xFF;
+                                self.registers.f.half_carry = (sp_low & 0xF) + (offset_byte & 0xF) > 0xF;
                                 
                                 self.set_register_value(result, target);
                             }
                             _ => {
-                                // For other ADD operations with SP (like ADD SP,HL)
+                                // For other ADD operations with SP (like ADD HL,SP)
                                 let (new_value, did_overflow) = val.overflowing_add(value);
                                 self.registers.f.subtract = false;
                                 self.registers.f.carry = did_overflow;
@@ -614,61 +617,31 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::ADC(target) => {
-                let value = self.get_register_value(target);
+                let value = self.get_register_value(target) as u8;
                 let instr_len = match target {
-                    Target::MemoryR16(_) => 2,
+                    Target::MemoryR16(_) => 1,
                     Target::Register(_) => 1,
                     Target::Const8() => 2,
                     _ => panic!("Unsupported ADC source for length: {:?}", target),
                 };
-                match target {
-                    Target::Const8() => {
-                        let value = self.bus.read_byte(self.pc.wrapping_add(1));
-                        let carry = if self.registers.f.carry { 1 } else { 0 };
-                        let (new_value, did_overflow) =
-                            self.registers.a.overflowing_add(value + carry);
-                        self.registers.f.zero = new_value == 0;
-                        self.registers.f.subtract = false;
-                        self.registers.f.carry = did_overflow;
-                        self.registers.f.half_carry =
-                            (self.registers.a & 0xF) + (value & 0xF) + carry > 0xF;
-                        self.registers.a = new_value.wrapping_add(if did_overflow { 1 } else { 0 });
-                        self.pc = self.pc.wrapping_add(1);
-                    }
-                    Target::Register(_) => {
-                        let carry = if self.registers.f.carry { 1 } else { 0 };
-                        let (new_value, did_overflow) =
-                            self.registers.a.overflowing_add(value as u8 + carry);
-                        self.registers.f.zero = new_value == 0;
-                        self.registers.f.subtract = false;
-                        self.registers.f.carry = did_overflow;
-                        self.registers.f.half_carry =
-                            (self.registers.a & 0xF) + (value as u8 & 0xF) + carry > 0xF;
-                        self.registers.a = new_value.wrapping_add(if did_overflow { 1 } else { 0 });
-                    }
-                    Target::MemoryR16(_) => {
-                        let hl_value = self.registers.get_hl();
-                        let value = self.bus.read_byte(hl_value);
-                        let carry = if self.registers.f.carry { 1 } else { 0 };
-                        let (result, carry1) = self.registers.a.overflowing_add(value);
-                        let (result, carry2) = result.overflowing_add(carry);
-                        self.registers.f.zero = result == 0;
-                        self.registers.f.subtract = false;
-                        self.registers.f.carry = carry1 || carry2;
-                        self.registers.f.half_carry =
-                            (self.registers.a & 0xF) + (value & 0xF) + carry > 0xF;
-                        self.registers.a = result;
-                    }
-                    _ => {
-                        panic!("Invalid target for ADC instruction: {:?}", target);
-                    }
-                }
+                
+                let carry = if self.registers.f.carry { 1 } else { 0 };
+                
+                let (temp_result, carry1) = self.registers.a.overflowing_add(value);
+                let (final_result, carry2) = temp_result.overflowing_add(carry);
+                
+                self.registers.f.zero = final_result == 0;
+                self.registers.f.subtract = false;
+                self.registers.f.carry = carry1 || carry2;
+                self.registers.f.half_carry = (self.registers.a & 0xF) + (value & 0xF) + carry > 0xF;
+                self.registers.a = final_result;
+                
                 self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::SUB(target) => {
                 let value = self.get_register_value(target);
                 let instr_len = match target {
-                    Target::MemoryR16(_) => 2,
+                    Target::MemoryR16(_) => 1,
                     Target::Register(_) => 1,
                     Target::Const8() => 2,
                     _ => panic!("Unsupported SUB source for length: {:?}", target),
@@ -681,22 +654,26 @@ impl CPU {
                 self.registers.a = new_value;
                 self.pc = self.pc.wrapping_add(instr_len);
             }
-            Instruction::SBC(target, source) => {
-                let val = self.get_register_value(source);
-                let temp = self.get_register_value(target) as u8;
+            Instruction::SBC(target) => {
+                let value = self.get_register_value(target) as u8;
                 let instr_len = match target {
                     Target::MemoryR16(_) => 1,
                     Target::Register(_) => 1,
                     Target::Const8() => 2,
                     _ => panic!("Unsupported SBC source for length: {:?}", target),
                 };
+                
                 let carry = if self.registers.f.carry { 1 } else { 0 };
-                let (new_value, did_overflow) = temp.overflowing_sub(val as u8 + carry);
-                self.registers.f.zero = new_value == 0;
+                
+                let (temp_result, borrow1) = self.registers.a.overflowing_sub(value);
+                let (final_result, borrow2) = temp_result.overflowing_sub(carry);
+                
+                self.registers.f.zero = final_result == 0;
                 self.registers.f.subtract = true;
-                self.registers.f.carry = did_overflow;
-                self.registers.f.half_carry = (self.registers.a & 0xF) < (val as u8 & 0xF) + carry;
-                self.registers.a = new_value;
+                self.registers.f.carry = borrow1 || borrow2;
+                self.registers.f.half_carry = (self.registers.a & 0xF) < (value & 0xF) + carry;
+                self.registers.a = final_result;
+                
                 self.pc = self.pc.wrapping_add(instr_len);
             }
             Instruction::AND(target, source) => {
@@ -754,7 +731,7 @@ impl CPU {
                 let value = self.get_register_value(target) as u8;
                 let (new_value, did_overflow) = self.registers.a.overflowing_sub(value);
                 let instr_len = match target {
-                    Target::MemoryR16(_) => 2,
+                    Target::MemoryR16(_) => 1,
                     Target::Register(_) => 1,
                     Target::Const8() => 2,
                     _ => panic!("Unsupported CP source for length: {:?}", target),
@@ -765,47 +742,46 @@ impl CPU {
                 self.registers.f.carry = did_overflow;
                 self.pc = self.pc.wrapping_add(instr_len);
             }
-            Instruction::INC(target) => { //Changme this is hacky way to handle INC for different targets
-                let instr_len = 1;
-
+            Instruction::INC(target) => {
                 match target {
-                    Target::Register(arithmetic_target) => {
-                        let reg_val_u8 = self.get_register_value(Target::Register(arithmetic_target)) as u8;
-                        let (new_val_u8, _overflow) = reg_val_u8.overflowing_add(1);
-                        self.registers.f.zero = new_val_u8 == 0;
-                        self.registers.f.subtract = false;
-                        self.registers.f.half_carry = (reg_val_u8 & 0x0F) == 0x0F;
-                        self.set_register_value(new_val_u8 as u16, Target::Register(arithmetic_target));
-                    }
-                    Target::MemoryR16(double_target @ DoubleTarget::HL) => {
-                        let address = self.get_register_value(Target::Register16(double_target));
-                        let mem_val_u8 = self.bus.read_byte(address);
-                        let (new_val_u8, _overflow) = mem_val_u8.overflowing_add(1);
-                        self.registers.f.zero = new_val_u8 == 0;
-                        self.registers.f.subtract = false;
-                        self.registers.f.half_carry = (mem_val_u8 & 0x0F) == 0x0F;
-                        self.bus.write_byte(address, new_val_u8);
-                    }
-                    Target::Register16(double_target) => {
-                        let reg16_val = self.get_register_value(Target::Register16(double_target));
-                        let new_val_u16 = reg16_val.wrapping_add(1);
-                        self.set_register_value(new_val_u16, Target::Register16(double_target));
-                    }
-                    _ => {
-                        let value = self.get_register_value(target); 
-                        let (new_value, _did_overflow) = value.overflowing_add(1);
+                    Target::Register16(_) => {
+                        let value = self.get_register_value(target);
+                        let new_value = value.wrapping_add(1);
                         self.set_register_value(new_value, target);
                     }
+                    Target::Register(_) | Target::MemoryR16(_) => {
+                        let value = self.get_register_value(target) as u8;
+                        let new_value = value.wrapping_add(1);
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.subtract = false;
+                        self.registers.f.half_carry = (value & 0x0F) == 0x0F;
+                        self.set_register_value(new_value as u16, target);
+                    }
+                    _ => {
+                        panic!("Invalid target for INC instruction: {:?}", target);
+                    }
                 }
-                self.pc = self.pc.wrapping_add(instr_len);
+                self.pc = self.pc.wrapping_add(1);
             }
             Instruction::DEC(target) => {
-                let value = self.get_register_value(target);
-                let (new_value, _did_overflow) = value.overflowing_sub(1);
-                self.registers.f.zero = new_value == 0;
-                self.registers.f.subtract = true;
-                self.registers.f.half_carry = (value & 0xF) == 0xF;
-                self.set_register_value(new_value, target);
+                match target {
+                    Target::Register16(_) => {
+                        let value = self.get_register_value(target);
+                        let new_value = value.wrapping_sub(1);
+                        self.set_register_value(new_value, target);
+                    }
+                    Target::Register(_) | Target::MemoryR16(_) => {
+                        let value = self.get_register_value(target) as u8;
+                        let new_value = value.wrapping_sub(1);
+                        self.registers.f.zero = new_value == 0;
+                        self.registers.f.subtract = true;
+                        self.registers.f.half_carry = (value & 0xF) == 0x0;
+                        self.set_register_value(new_value as u16, target);
+                    }
+                    _ => {
+                        panic!("Invalid target for DEC instruction: {:?}", target);
+                    }
+                }
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::CCF() => {

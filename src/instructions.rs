@@ -7,7 +7,7 @@ pub enum Instruction {
     AND(Target, Target),
     CP(Target),
     SUB(Target),
-    SBC(Target, Target),
+    SBC(Target),
     OR(Target, Target),
     XOR(Target, Target),
     INC(Target),
@@ -766,36 +766,28 @@ impl Instruction {
             0x96 => Some(Instruction::SUB(Target::MemoryR16(DoubleTarget::HL))),
             0x97 => Some(Instruction::SUB(Target::Register(ArithmeticTarget::A))),
             0x98 => Some(Instruction::SBC(
-                Target::Register(ArithmeticTarget::A),
-                Target::Register(ArithmeticTarget::B),
+                Target::Register(ArithmeticTarget::B)
             )),
             0x99 => Some(Instruction::SBC(
-                Target::Register(ArithmeticTarget::A),
-                Target::Register(ArithmeticTarget::C),
+                Target::Register(ArithmeticTarget::C)
             )),
             0x9A => Some(Instruction::SBC(
-                Target::Register(ArithmeticTarget::A),
-                Target::Register(ArithmeticTarget::D),
+                Target::Register(ArithmeticTarget::D)
             )),
             0x9B => Some(Instruction::SBC(
-                Target::Register(ArithmeticTarget::A),
-                Target::Register(ArithmeticTarget::E),
+                Target::Register(ArithmeticTarget::E)
             )),
             0x9C => Some(Instruction::SBC(
-                Target::Register(ArithmeticTarget::A),
-                Target::Register(ArithmeticTarget::H),
+                Target::Register(ArithmeticTarget::H)
             )),
             0x9D => Some(Instruction::SBC(
-                Target::Register(ArithmeticTarget::A),
-                Target::Register(ArithmeticTarget::L),
+                Target::Register(ArithmeticTarget::L)
             )),
             0x9E => Some(Instruction::SBC(
-                Target::Register(ArithmeticTarget::A),
-                Target::MemoryR16(DoubleTarget::HL),
+                Target::MemoryR16(DoubleTarget::HL)
             )),
             0x9F => Some(Instruction::SBC(
-                Target::Register(ArithmeticTarget::A),
-                Target::Register(ArithmeticTarget::A),
+                Target::Register(ArithmeticTarget::A)
             )),
             0xA0 => Some(Instruction::AND(
                 Target::Register(ArithmeticTarget::A),
@@ -933,7 +925,7 @@ impl Instruction {
             0xDB => panic!("No instruction to execute. This byte is empty: {:#X}", byte),
             0xDC => Some(Instruction::CALL(JumpCondition::Carry, 0)),
             0xDD => panic!("No instruction to execute. This byte is empty: {:#X}", byte),
-            0xDE => Some(Instruction::SBC(Target::Register(ArithmeticTarget::A),Target::Const8())),
+            0xDE => Some(Instruction::SBC(Target::Const8())),
             0xDF => Some(Instruction::RST(0x18)),
             0xE0 => Some(Instruction::LDH(LDHRegister::MemA8, LDHRegister::ArithmeticTarget)),
             0xE1 => Some(Instruction::POP(Target::Register16(DoubleTarget::HL))),
