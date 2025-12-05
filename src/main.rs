@@ -19,7 +19,7 @@ struct Args {
     /// Execute one instruction at a time
     step: bool,
     /// Path to the ROM file
-    #[clap(default_value = "roms/03-op sp,hl.gb")]
+    #[clap(default_value = "roms/Tetris.gb")]
     path: PathBuf,
 }
 

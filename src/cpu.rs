@@ -19,6 +19,8 @@ pub struct CPU {
 pub struct MemoryBus {
     pub memory: [u8; 0xFFFF + 1],
     pub gpu: GPU,
+    pub div_counter: u16,
+    pub tima_counter: u16,
 }
 
 impl MemoryBus {    #[inline(always)]
@@ -26,6 +28,13 @@ impl MemoryBus {    #[inline(always)]
         let address = address as usize;
         match address {
             VRAM_BEGIN..=VRAM_END => self.gpu.read_vram(address - VRAM_BEGIN),
+            0xFE00..=0xFE9F => self.gpu.read_vram(address - 0xFE00),
+            0xFF00 => {
+                // Joypad: Return 0xCF (all buttons released) to prevent soft reset
+                // Bit 7,6 unused (1). Bit 5,4 selection. Bit 3-0 buttons (1=released).
+                // We return 0xCF to indicate no buttons are pressed.
+                0xCF
+            }
             0xFF44 => self.gpu.ly,
             _ => self.memory[address],
         }
@@ -76,6 +85,11 @@ impl MemoryBus {    #[inline(always)]
                 self.memory[address as usize] = value;
                 self.gpu.bgp = value;
             }
+            0xFF04 => {
+                // DIV register: writing any value resets it to 0
+                self.memory[address as usize] = 0;
+                self.div_counter = 0;
+            }
             _ => {
                 self.memory[address as usize] = value;
             }
@@ -119,6 +133,8 @@ impl Default for CPU {
             bus: MemoryBus {
                 memory: { [0u8; 0xFFFF + 1] },
                 gpu: GPU::new(),
+                div_counter: 0,
+                tima_counter: 0,
             },
             is_halted: false,
             cycle_count: 0,
@@ -524,9 +540,22 @@ impl CPU {
     }
 
     pub fn step(&mut self) {
+        // Handle interrupts before fetching instruction
+        self.handle_interrupts();
+
         if self.is_halted {
+            self.cycle_count = 4; // HALT consumes cycles
+            self.update_timers(4);
+            let (vblank, stat) = self.bus.gpu.step(4);
+            if vblank {
+                self.request_interrupt(0); // VBlank
+            }
+            if stat {
+                self.request_interrupt(1); // LCD STAT
+            }
             return;
         }
+
         let mut instruction_byte = self.bus.read_byte(self.pc);
         let prefixed = instruction_byte == 0xCB;
         if prefixed {
@@ -545,6 +574,90 @@ impl CPU {
             };
 
         self.pc = next_pc;
+    }
+
+    fn request_interrupt(&mut self, bit: u8) {
+        let mut if_flag = self.bus.read_byte(0xFF0F);
+        if_flag |= 1 << bit;
+        self.bus.write_byte(0xFF0F, if_flag);
+    }
+
+    fn handle_interrupts(&mut self) {
+        let ie = self.bus.read_byte(0xFFFF);
+        let if_flag = self.bus.read_byte(0xFF0F);
+
+        if if_flag & ie != 0 {
+            self.is_halted = false;
+        }
+
+        if !self.registers.ime {
+            return;
+        }
+
+        // Priority: VBlank, STAT, Timer, Serial, Joypad
+        for i in 0..5 {
+            if (if_flag & ie) & (1 << i) != 0 {
+                self.service_interrupt(i);
+                return; // Only service one interrupt per step
+            }
+        }
+    }
+
+    fn service_interrupt(&mut self, interrupt_bit: u8) {
+        self.registers.ime = false;
+        let if_flag = self.bus.read_byte(0xFF0F);
+        self.bus.write_byte(0xFF0F, if_flag & !(1 << interrupt_bit));// Clear the interrupt flag
+
+        self.push(self.pc);
+        self.pc = match interrupt_bit {
+            0 => 0x0040, // VBlank
+            1 => 0x0048, // LCD STAT
+            2 => 0x0050, // Timer
+            3 => 0x0058, // Serial
+            4 => 0x0060, // Joypad
+            _ => 0x0000,
+        };
+    }
+
+    fn update_timers(&mut self, cycles: u16) {
+        self.bus.div_counter += cycles;
+
+        // Update DIV register
+        // DIV increments every 256 cycles
+        // Because DIV increments at a fixed 16,384 Hz rate (every 256 CPU cycles) (Gameboy CPU runs at 4,194,304 Hz),
+        if self.bus.div_counter >= 256 {
+            let increments = self.bus.div_counter / 256;// Number of times DIV should increment
+
+            self.bus.div_counter %= 256; // Remainder cycles after DIV increments
+
+            // Update DIV register without triggering zeroing it through write_byte
+            let div = self.bus.memory[0xFF04];
+            self.bus.memory[0xFF04] = div.wrapping_add(increments as u8);
+        }
+
+        let tac = self.bus.read_byte(0xFF07);
+        if tac & 0x04 != 0 { // Check if Timer is Enabled (bit 2)
+            let frequency = match tac & 0x03 { // Bits 1-0 determine frequency
+                0 => 1024,
+                1 => 16,
+                2 => 64,
+                3 => 256,
+                _ => 1024,
+            };
+
+            self.bus.tima_counter += cycles;
+            while self.bus.tima_counter >= frequency {
+                self.bus.tima_counter -= frequency;
+                let tima = self.bus.read_byte(0xFF05);
+                if tima == 0xFF {
+                    let tma = self.bus.read_byte(0xFF06);
+                    self.bus.write_byte(0xFF05, tma);
+                    self.request_interrupt(2); // Timer Interrupt
+                } else {
+                    self.bus.write_byte(0xFF05, tima + 1);
+                }
+            }
+        }
     }
 
     pub fn execute(&mut self, instruction: Instruction) -> u16 {
@@ -1207,7 +1320,14 @@ impl CPU {
 
         let cycles = self.get_instruction_cycles(&instruction);
         self.cycle_count = cycles;
-        self.bus.gpu.step(self.cycle_count);
+        self.update_timers(cycles);
+        let (vblank, stat) = self.bus.gpu.step(self.cycle_count);
+        if vblank {
+            self.request_interrupt(0); // VBlank
+        }
+        if stat {
+            self.request_interrupt(1); // LCD STAT
+        }
         self.pc
     }
 }

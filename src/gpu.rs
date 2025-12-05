@@ -33,8 +33,10 @@ pub struct GPU {
 }
 
 impl GPU {
-    pub fn step(&mut self, cycles: u16) -> u8 {
+    pub fn step(&mut self, cycles: u16) -> (bool, bool) {
         self.mode_clock += cycles;
+        let mut vblank = false;
+        let stat = false;
 
         // Each scanline takes ~456 cycles
         if self.mode_clock >= 456 {
@@ -43,12 +45,11 @@ impl GPU {
             // Move to next scanline
             self.ly = (self.ly + 1) % 154;
 
-            // Return LY so CPU can update memory
-            return self.ly;
+            if self.ly == 144 {
+                vblank = true;
+            }
         }
-
-        // No update
-        self.ly
+        (vblank, stat)
     }
 
     pub fn new() -> Self {
@@ -105,18 +106,14 @@ impl GPU {
         let mut framebuffer = vec![0u32; SCREEN_WIDTH * SCREEN_HEIGHT];
 
         if self.lcdc & 0x80 == 0 {
-            return framebuffer;
+            // Return a white screen when LCD is disabled
+            return vec![0xFFFFFFFF; SCREEN_WIDTH * SCREEN_HEIGHT];
         }
 
         let tilemap_base = if self.lcdc & 0x08 != 0 {
             0x9C00
         } else {
             0x9800
-        };
-
-        // Debug code
-        if self.scy == 0 {
-            self.dump_vram().unwrap();
         };
 
         //self.render_tileset(&mut framebuffer);
