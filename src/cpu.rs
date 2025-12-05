@@ -90,6 +90,20 @@ impl MemoryBus {    #[inline(always)]
                 self.memory[address as usize] = 0;
                 self.div_counter = 0;
             }
+            0xFF01 => {
+                self.memory[address as usize] = value;
+            }
+            0xFF02 => {
+                self.memory[address as usize] = value;
+                if value & 0x80 != 0 {
+                    let byte = self.memory[0xFF01];
+                    print!("{}", byte as char);
+                    use std::io::Write;
+                    std::io::stdout().flush().unwrap();
+                    // Clear the serial transfer control register to indicate completion
+                    self.memory[0xFF02] &= !0x80; 
+                }
+            }
             _ => {
                 self.memory[address as usize] = value;
             }
@@ -544,8 +558,8 @@ impl CPU {
         self.handle_interrupts();
 
         if self.is_halted {
-            self.cycle_count = 4; // HALT consumes cycles
-            self.update_timers(4);
+            self.cycle_count = 4; // HALT consumes 4 M-cycles
+            self.update_timers(16); // 4 M-cycles * 4 = 16 T-cycles
             let (vblank, stat) = self.bus.gpu.step(4);
             if vblank {
                 self.request_interrupt(0); // VBlank
@@ -962,9 +976,6 @@ impl CPU {
             Instruction::SET(offset, target) => {
                 let value: u16 = self.get_register_value(target) | (1 << offset);
                 self.set_register_value(value, target);
-                self.registers.f.zero = false;
-                self.registers.f.subtract = false;
-                self.registers.f.half_carry = false;
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::SRL(target) => {
@@ -1050,23 +1061,34 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::LD(target, source) => {
-                let value: u16 = self.get_register_value(source);
-                self.set_register_value(value, target);
-                match (target, source) {
-                    // 3-byte instructions:
-                    (Target::Register16(_), Target::Const16())
-                    | (Target::MemoryConst16(), Target::Register(_))
-                    | (_, Target::MemoryConst16()) => {
-                        self.pc = self.pc.wrapping_add(3);
-                    }
-                    // 2-byte instructions:
-                    (Target::Register(_), Target::Const8())
-                    | (Target::MemoryR16(_), Target::Const8()) => {
-                        self.pc = self.pc.wrapping_add(2);
-                    }
-                    // 1-byte default:
-                    _ => {
-                        self.pc = self.pc.wrapping_add(1);
+                // Special case: LD (nn),SP stores 16-bit SP to memory
+                if let (Target::MemoryConst16(), Target::Register16(DoubleTarget::SP)) = (target, source) {
+                    let address_low = self.bus.read_byte(self.pc.wrapping_add(1)) as u16;
+                    let address_high = self.bus.read_byte(self.pc.wrapping_add(2)) as u16;
+                    let final_address = (address_high << 8) | address_low;
+                    let sp_value = self.sp;
+                    self.bus.write_byte(final_address, sp_value as u8);  // Low byte
+                    self.bus.write_byte(final_address.wrapping_add(1), (sp_value >> 8) as u8);  // High byte
+                    self.pc = self.pc.wrapping_add(3);
+                } else {
+                    let value: u16 = self.get_register_value(source);
+                    self.set_register_value(value, target);
+                    match (target, source) {
+                        // 3-byte instructions:
+                        (Target::Register16(_), Target::Const16())
+                        | (Target::MemoryConst16(), Target::Register(_))
+                        | (_, Target::MemoryConst16()) => {
+                            self.pc = self.pc.wrapping_add(3);
+                        }
+                        // 2-byte instructions:
+                        (Target::Register(_), Target::Const8())
+                        | (Target::MemoryR16(_), Target::Const8()) => {
+                            self.pc = self.pc.wrapping_add(2);
+                        }
+                        // 1-byte default:
+                        _ => {
+                            self.pc = self.pc.wrapping_add(1);
+                        }
                     }
                 }
             }
@@ -1075,7 +1097,9 @@ impl CPU {
             }
             Instruction::STOP() => {
                 self.pc = self.pc.wrapping_add(2);
-                unimplemented!("STOP instruction not implemented yet");
+                // STOP stops the system clock and oscillator, but for now we'll treat it as HALT
+                // to prevent the emulator from crashing.
+                self.is_halted = true;
             }
             Instruction::DAA() => {
                 let mut adjust = 0;
@@ -1263,14 +1287,8 @@ impl CPU {
                 let carry = (sp_low as u32) + (offset_byte as u32) > 0xFF;
                 self.registers.f.carry = carry;
                 
-                // Half-carry calculation: if there's a full carry and all low bits are set,
-                // the half-carry behavior is different
-                if sp_low == 0xFF && offset_byte == 0x01 {
-                    // Special case: 0xFF + 0x01 = 0x100, no half-carry despite 0xF + 0x1
-                    self.registers.f.half_carry = false;
-                } else {
-                    self.registers.f.half_carry = (sp_low & 0xF) + (offset_byte & 0xF) > 0xF;
-                }
+                // Half-carry calculation
+                self.registers.f.half_carry = (sp_low & 0xF) + (offset_byte & 0xF) > 0xF;
                 
                 self.pc = self.pc.wrapping_add(2);
             }
@@ -1303,7 +1321,7 @@ impl CPU {
         }
 
         if self.debug_mode {
-            log::info!(
+            log::debug!(
                 "Registers A: {:02x} | B: {:#02x} | C: {:02x} | D: {:02x} | E: {:02x} | H: {:02x} | L: {:02x} | SP: {:02x} PC: {:02x}\n\
                 FlagsZero: {:?} | Subtract: {:?} | Half Carry: {:?} | Carry: {:?}\n\
                 Instruction: {:?}\n
@@ -1318,9 +1336,15 @@ impl CPU {
             );
         }
 
+        // Temporary debug for hanging test
+        if self.pc == 0xC01A {
+             // println!("Looping at C01A, A: {:02x}", self.registers.a);
+        }
+
         let cycles = self.get_instruction_cycles(&instruction);
         self.cycle_count = cycles;
-        self.update_timers(cycles);
+        // Timer uses T-cycles (4x M-cycles), so multiply by 4
+        self.update_timers(cycles * 4);
         let (vblank, stat) = self.bus.gpu.step(self.cycle_count);
         if vblank {
             self.request_interrupt(0); // VBlank

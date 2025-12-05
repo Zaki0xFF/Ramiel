@@ -330,7 +330,7 @@ impl Instruction {
                 Target::Const16(),
             )),
             0x02 => Some(Instruction::LD(
-                Target::Register16(DoubleTarget::BC),
+                Target::MemoryR16(DoubleTarget::BC),
                 Target::Register(ArithmeticTarget::A),
             )),
             0x03 => Some(Instruction::INC(Target::Register16(DoubleTarget::BC))),

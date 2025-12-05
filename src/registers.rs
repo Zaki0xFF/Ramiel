@@ -46,7 +46,7 @@ pub enum ArithmeticTarget {
 pub enum Target {
     Register(ArithmeticTarget),
     Register16(DoubleTarget),
-    MemoryR16(DoubleTarget),
+    MemoryR16(DoubleTarget), // Memory at address 16 bit register
     Const8(),
     Const16(),
     MemoryConst16(),

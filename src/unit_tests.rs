@@ -522,7 +522,8 @@ mod instructions_unit {
         assert!(!cpu.registers.f.subtract);
         // Should set carry flag (carry from bit 7 to bit 8)
         assert!(cpu.registers.f.carry);
-        assert!(!cpu.registers.f.half_carry); // No half carry in this case
+        // Half carry IS set: 0xF + 0x1 = 0x10, carries from bit 3
+        assert!(cpu.registers.f.half_carry);
     }
 
     #[test]
