@@ -19,7 +19,7 @@ struct Args {
     /// Execute one instruction at a time
     step: bool,
     /// Path to the ROM file
-    #[clap(default_value = "roms/Tetris.gb")]
+    #[clap(default_value = "roms/03-op sp,hl.gb")]
     path: PathBuf,
 }
 
@@ -69,12 +69,10 @@ fn main() {
         } else {
             // Normal mode - run at full speed
             let mut executed_cycles: u32 = 0;
-            loop {
+            // 70224 cycles per frame (4.194304 MHz / 59.73 Hz)
+            while executed_cycles < 70224 {
                 cpu.step();
                 executed_cycles += cpu.cycle_count as u32;
-                if executed_cycles >= 69905 {
-                    break;
-                }
             }
 
             let framebuffer = cpu.bus.gpu.render_screen();

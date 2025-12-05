@@ -180,7 +180,7 @@ impl CPU {
         cpu.bus.load_rom(path).unwrap();
         cpu.pc = 0x100;
         cpu.sp = 0xFFFE;
-        cpu.registers.a = 0x11;
+        cpu.registers.a = 0x01;
         cpu.registers.f = FlagsRegister {
             zero: true,
             subtract: false,
@@ -344,11 +344,6 @@ impl CPU {
                 Target::Register16(_) => 4,
                 _ => panic!("Invalid PUSH instruction cycle count target: {:?}", target),
             },
-            Instruction::RES(_, target) => match target {
-                Target::Register(_) => 2,
-                Target::MemoryR16(_) => 4,
-                _ => panic!("Invalid RES instruction cycle count target: {:?}", target),
-            },
             Instruction::RET(condition) => match condition {
                 JumpCondition::Always => 4,
                 _ => {
@@ -398,6 +393,11 @@ impl CPU {
                 Target::Register(_) => 2,
                 Target::MemoryR16(_) => 4,
                 _ => panic!("Invalid SET instruction cycle count target: {:?}", target),
+            },
+            Instruction::RES(_, target) => match target {
+                Target::Register(_) => 2,
+                Target::MemoryR16(_) => 4,
+                _ => panic!("Invalid RES instruction cycle count target: {:?}", target),
             },
             Instruction::SLA(target) => match target {
                 Target::Register(_) => 2,
@@ -978,6 +978,11 @@ impl CPU {
                 self.set_register_value(value, target);
                 self.pc = self.pc.wrapping_add(2);
             }
+            Instruction::RES(offset, target) => {
+                let value: u16 = self.get_register_value(target) & !(1 << offset);
+                self.set_register_value(value, target);
+                self.pc = self.pc.wrapping_add(2);
+            }
             Instruction::SRL(target) => {
                 let value = self.get_register_value(target);
                 self.registers.f.carry = value & 0x1 == 0x1;
@@ -1311,12 +1316,6 @@ impl CPU {
                 self.sp = self.sp.wrapping_add(1);
 
                 self.pc = self.pc.wrapping_add(1);
-            }
-            Instruction::RES(bit, target) => {
-                let value = self.get_register_value(target);
-                let new_value = value & !(1 << bit);
-                self.set_register_value(new_value, target);
-                self.pc = self.pc.wrapping_add(2);
             }
         }
 
