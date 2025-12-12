@@ -18,9 +18,12 @@ pub struct CPU {
 #[allow(dead_code)]
 pub struct MemoryBus {
     pub memory: [u8; 0xFFFF + 1],
+    pub cartridge_data: Vec<u8>,
+    pub rom_bank: u8,
     pub gpu: GPU,
     pub div_counter: u16,
     pub tima_counter: u16,
+    pub joypad_state: u8, // Internal state: 1=Pressed. Bits: 0=Right, 1=Left, 2=Up, 3=Down, 4=A, 5=B, 6=Select, 7=Start
 }
 
 impl MemoryBus {    #[inline(always)]
@@ -28,14 +31,41 @@ impl MemoryBus {    #[inline(always)]
         let address = address as usize;
         match address {
             VRAM_BEGIN..=VRAM_END => self.gpu.read_vram(address - VRAM_BEGIN),
-            0xFE00..=0xFE9F => self.gpu.read_vram(address - 0xFE00),
+            0xFE00..=0xFE9F => self.gpu.read_oam(address - 0xFE00),
             0xFF00 => {
-                // Joypad: Return 0xCF (all buttons released) to prevent soft reset
-                // Bit 7,6 unused (1). Bit 5,4 selection. Bit 3-0 buttons (1=released).
-                // We return 0xCF to indicate no buttons are pressed.
-                0xCF
+                let mut d100 = self.memory[0xFF00];
+                d100 |= 0xCF; // Set unused bits/buttons released by default
+
+                // Bit 4 = 0 => Direction Keys Selected
+                // Bit 5 = 0 => Action Keys Selected
+                // 0 = Selected, 1 = Deselected
+                
+                if d100 & 0x10 == 0 {
+                    // Start, Select, B, A
+                    if self.joypad_state & 0x01 != 0 { d100 &= !0x01; } // Right -> A ??? No
+                    // Standard: 
+                    // Select Bit 4 (Directions): Down(3) Up(2) Left(1) Right(0)
+                    // Select Bit 5 (Actions): Start(3) Select(2) B(1) A(0)
+
+                    // My mapping in MemoryBus comment: 0=Right, 1=Left, 2=Up, 3=Down, 4=A, 5=B, 6=Select, 7=Start
+                    if self.joypad_state & 0x01 != 0 { d100 &= !0x01; } // Right
+                    if self.joypad_state & 0x02 != 0 { d100 &= !0x02; } // Left
+                    if self.joypad_state & 0x04 != 0 { d100 &= !0x04; } // Up
+                    if self.joypad_state & 0x08 != 0 { d100 &= !0x08; } // Down
+                }
+                
+                if d100 & 0x20 == 0 {
+                    // Action Keys
+                    if self.joypad_state & 0x10 != 0 { d100 &= !0x01; } // A
+                    if self.joypad_state & 0x20 != 0 { d100 &= !0x02; } // B
+                    if self.joypad_state & 0x40 != 0 { d100 &= !0x04; } // Select
+                    if self.joypad_state & 0x80 != 0 { d100 &= !0x08; } // Start
+                }
+
+                d100
             }
             0xFF44 => self.gpu.ly,
+            0xFF4D | 0xFF4F | 0xFF51..=0xFF55 | 0xFF68..=0xFF6B | 0xFF70 => 0xFF,
             _ => self.memory[address],
         }
     }
@@ -43,6 +73,22 @@ impl MemoryBus {    #[inline(always)]
     #[inline(always)]
     pub fn write_byte(&mut self, address: u16, value: u8) {
         match address as usize {
+            // MBC1 ROM Bank Change
+            0x2000..=0x3FFF => {
+                let mut bank = value & 0x1F;
+                if bank == 0 {
+                    bank = 1;
+                }
+                self.rom_bank = bank;
+                
+                // Remap ROM Bank 1 (0x4000-0x7FFF)
+                let bank_offset = (bank as usize) * 0x4000;
+                if bank_offset < self.cartridge_data.len() {
+                    let end = (bank_offset + 0x4000).min(self.cartridge_data.len());
+                    let len = end - bank_offset;
+                    self.memory[0x4000..0x4000+len].copy_from_slice(&self.cartridge_data[bank_offset..end]);
+                }
+            }
             // VRAM
             VRAM_BEGIN..=VRAM_END => {
                 self.gpu.write_vram(address as usize - VRAM_BEGIN, value);
@@ -80,10 +126,34 @@ impl MemoryBus {    #[inline(always)]
                 self.memory[address as usize] = value;
                 self.gpu.lyc = value;
             }
+            0xFF46 => {
+                // OAM DMA Transfer
+                // Transfers 160 bytes from (value * 0x100) to 0xFE00
+                let source_base = (value as u16) << 8;
+                for i in 0..160 {
+                    let byte = self.read_byte(source_base + i);
+                    self.write_byte(0xFE00 + i, byte);
+                }
+                self.memory[address as usize] = value;
+            }
             0xFF47 => {
                 // BGP
                 self.memory[address as usize] = value;
                 self.gpu.bgp = value;
+            }
+            0xFF48 => {
+                // OBP0
+                self.memory[address as usize] = value;
+                self.gpu.obp0 = value;
+            }
+            0xFF49 => {
+                // OBP1
+                self.memory[address as usize] = value;
+                self.gpu.obp1 = value;
+            }
+            0xFE00..=0xFE9F => {
+                self.gpu.write_oam(address as usize - 0xFE00, value);
+                self.memory[address as usize] = value;
             }
             0xFF04 => {
                 // DIV register: writing any value resets it to 0
@@ -99,6 +169,12 @@ impl MemoryBus {    #[inline(always)]
                     let byte = self.memory[0xFF01];
                     print!("{}", byte as char);
                     use std::io::Write;
+                    let mut file = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("serial.log")
+                        .unwrap();
+                    write!(file, "{}", byte as char).unwrap();
                     std::io::stdout().flush().unwrap();
                     // Clear the serial transfer control register to indicate completion
                     self.memory[0xFF02] &= !0x80; 
@@ -115,8 +191,20 @@ impl MemoryBus {    #[inline(always)]
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
 
-        let rom_size = buffer.len().min(0x8000); // Maximum 32KB ROM area
-        self.memory[..rom_size].copy_from_slice(&buffer[..rom_size]);
+        self.cartridge_data = buffer;
+        
+        // MBC1 Default Banking
+        // Bank 0 (0x0000-0x3FFF) is always the first 16KB
+        if self.cartridge_data.len() >= 0x4000 {
+            self.memory[0..0x4000].copy_from_slice(&self.cartridge_data[0..0x4000]);
+        } else {
+             self.memory[0..self.cartridge_data.len()].copy_from_slice(&self.cartridge_data);
+        }
+
+        // Bank 1 (0x4000-0x7FFF) is mapped to the second 16KB initially
+        if self.cartridge_data.len() >= 0x8000 {
+            self.memory[0x4000..0x8000].copy_from_slice(&self.cartridge_data[0x4000..0x8000]);
+        }
 
         Ok(())
     }
@@ -146,9 +234,12 @@ impl Default for CPU {
             sp: 0,
             bus: MemoryBus {
                 memory: { [0u8; 0xFFFF + 1] },
+                cartridge_data: Vec::new(),
+                rom_bank: 1,
                 gpu: GPU::new(),
                 div_counter: 0,
                 tima_counter: 0,
+                joypad_state: 0,
             },
             is_halted: false,
             cycle_count: 0,
@@ -577,6 +668,19 @@ impl CPU {
         }
         let next_pc: u16 =
             if let Some(instruction) = Instruction::from_byte(instruction_byte, prefixed) {
+                let m_cycles = self.get_instruction_cycles(&instruction);
+                let cycles = m_cycles * 4;
+                self.cycle_count = cycles;
+                
+                self.update_timers(cycles);
+                let (vblank, stat) = self.bus.gpu.step(cycles);
+                if vblank {
+                    self.request_interrupt(0); // VBlank
+                }
+                if stat {
+                    self.request_interrupt(1); // LCD STAT
+                }
+
                 self.execute(instruction)
             } else {
                 let description = format!(
@@ -1005,14 +1109,14 @@ impl CPU {
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::RL(target) => {
-                let value = self.get_register_value(target);
+                let value = self.get_register_value(target) as u8;
                 let carry = self.registers.f.carry;
                 self.registers.f.carry = value & 0x80 == 0x80;
                 let new_value = (value << 1) | (if carry { 0x1 } else { 0x0 });
                 self.registers.f.zero = new_value == 0;
                 self.registers.f.subtract = false;
                 self.registers.f.half_carry = false;
-                self.set_register_value(new_value, target);
+                self.set_register_value(new_value as u16, target);
                 self.pc = self.pc.wrapping_add(2);
             }
             Instruction::RRC(target) => {

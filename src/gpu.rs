@@ -1,6 +1,5 @@
 #![allow(unused_variables)]
-use std::fs::OpenOptions;
-use std::io::Write;
+
 
 pub const VRAM_BEGIN: usize = 0x8000;
 pub const VRAM_END: usize = 0x9FFF;
@@ -30,6 +29,9 @@ pub struct GPU {
     pub stat: u8, // LCDC Status
     mode_clock: u16,
     pub bgp: u8, // Background Palette
+    pub obp0: u8, // Object Palette 0
+    pub obp1: u8, // Object Palette 1
+    pub oam: [u8; 160], // Object Attribute Memory
 }
 
 impl GPU {
@@ -64,6 +66,9 @@ impl GPU {
             stat: 0,
             mode_clock: 0,
             bgp: 0xE4,
+            obp0: 0xE4,
+            obp1: 0xE4,
+            oam: [0; 160],
         }
     }
 
@@ -98,6 +103,14 @@ impl GPU {
             self.tile_set[tile_index][row_index][pixel_index] = value;
         }
     }
+    
+    pub fn read_oam(&self, address: usize) -> u8 {
+        self.oam[address]
+    }
+
+    pub fn write_oam(&mut self, address: usize, value: u8) {
+        self.oam[address] = value;
+    }
 
     pub fn render_screen(&mut self) -> Vec<u32> {
         const SCREEN_WIDTH: usize = 160;
@@ -107,7 +120,7 @@ impl GPU {
 
         if self.lcdc & 0x80 == 0 {
             // Return a white screen when LCD is disabled
-            return vec![0xFFFFFFFF; SCREEN_WIDTH * SCREEN_HEIGHT];
+            return vec![0x00E0F8D0; SCREEN_WIDTH * SCREEN_HEIGHT];
         }
 
         let tilemap_base = if self.lcdc & 0x08 != 0 {
@@ -116,8 +129,11 @@ impl GPU {
             0x9800
         };
 
-        //self.render_tileset(&mut framebuffer);
         self.render_tilemap(&mut framebuffer, tilemap_base);
+
+        if self.lcdc & 0x02 != 0 {
+            self.render_sprites(&mut framebuffer);
+        }
 
         framebuffer
     }
@@ -128,8 +144,8 @@ impl GPU {
 
         for y in 0..SCREEN_HEIGHT {
             for x in 0..SCREEN_WIDTH {
-                let scrolled_x = x; // hardcoded for now unexpected behaviour writes to scx 0x46
-                let scrolled_y = (y + self.scy as usize) % 256;
+                let scrolled_x = (x as u8).wrapping_add(self.scx) as usize;
+                let scrolled_y = (y as u8).wrapping_add(self.scy) as usize;
 
                 let tile_x = scrolled_x / 8;
                 let tile_y = scrolled_y / 8;
@@ -144,7 +160,7 @@ impl GPU {
 
                 // Handle signed tile indices if using 0x8800-0x97FF
                 let tile_index = if tile_data_base == 0x8800 {
-                    ((tile_index_val as i8) as i16 + 128) as usize
+                    ((tile_index_val as i8) as i16 + 256) as usize
                 } else {
                     tile_index_val as usize
                 };
@@ -154,16 +170,109 @@ impl GPU {
                 let pixel_y = scrolled_y % 8;
                 let pixel_value = self.tile_set[tile_index][pixel_y][pixel_x];
 
-                // Map the pixel value to a color
-                let color = match pixel_value {
-                    TilePixelValue::Zero => 0xFFFFFFFF,  // White
-                    TilePixelValue::One => 0xAAAAAAFF,   // Light gray
-                    TilePixelValue::Two => 0x555555FF,   // Dark gray
-                    TilePixelValue::Three => 0x000000FF, // Black
+                // Map the pixel value to a color using BGP
+                let color_bits = match pixel_value {
+                    TilePixelValue::Zero => (self.bgp >> 0) & 0x03,
+                    TilePixelValue::One => (self.bgp >> 2) & 0x03,
+                    TilePixelValue::Two => (self.bgp >> 4) & 0x03,
+                    TilePixelValue::Three => (self.bgp >> 6) & 0x03,
+                };
+                
+                let color = match color_bits {
+                    0 => 0x00E0F8D0, // White / Lightest Green
+                    1 => 0x0088C070, // Light Gray / Light Green
+                    2 => 0x00346856, // Dark Gray / Dark Green
+                    3 => 0x00081820, // Black / Darkest Green
+                    _ => 0x00E0F8D0,
                 };
 
                 // Write the color to the framebuffer
                 framebuffer[y * SCREEN_WIDTH + x] = color;
+            }
+        }
+    }
+
+    fn render_sprites(&self, framebuffer: &mut Vec<u32>) {
+        const SCREEN_WIDTH: usize = 160;
+        const SCREEN_HEIGHT: usize = 144;
+        
+        let sprite_size_y = if self.lcdc & 0x04 != 0 { 16 } else { 8 };
+
+        for i in 0..40 {
+            let offset = i * 4;
+            let y_pos = self.oam[offset] as i16 - 16;
+            let x_pos = self.oam[offset + 1] as i16 - 8;
+            let tile_index = self.oam[offset + 2];
+            let attributes = self.oam[offset + 3];
+
+            if y_pos <= 144 && y_pos + sprite_size_y > 0 { 
+                 let palette = if attributes & 0x10 != 0 { self.obp1 } else { self.obp0 };
+                 let x_flip = attributes & 0x20 != 0;
+                 let y_flip = attributes & 0x40 != 0;
+                 let bg_priority = attributes & 0x80 != 0; 
+                 let t_index = if sprite_size_y == 16 { tile_index & 0xFE } else { tile_index } as usize;
+
+                 for row in 0..sprite_size_y {
+                     let screen_y = y_pos + row;
+                     if screen_y < 0 || screen_y >= SCREEN_HEIGHT as i16 { continue; }
+                     let tile_row = if y_flip { sprite_size_y - 1 - row } else { row };                   
+                     let current_tile_index = if tile_row < 8 { t_index } else { t_index + 1 };
+                     let current_tile_row = (tile_row % 8) as usize;
+                     for col in 0..8 {
+                         let screen_x = x_pos + col;
+                         if screen_x < 0 || screen_x >= SCREEN_WIDTH as i16 { continue; }
+                         let tile_col = if x_flip { 7 - col } else { col };
+                         let pixel_val = self.tile_set[current_tile_index][current_tile_row][tile_col as usize];
+                         if pixel_val == TilePixelValue::Zero { continue; } 
+                         if bg_priority {
+                             let current_color = framebuffer[(screen_y as usize) * SCREEN_WIDTH + (screen_x as usize)];
+                             if current_color != 0x00E0F8D0 { continue; }
+                         }
+                         let color_bits = match pixel_val {
+                             TilePixelValue::Zero => 0,
+                             TilePixelValue::One => (palette >> 0) & 0x03, // Check bits: OBP0 is bit 1-0 for Col 1? No.
+                             // Palette logic: 
+                             // Bits 0-1 for Color 0 (Transparent - unused)
+                             // Bits 2-3 for Color 1
+                             // Bits 4-5 for Color 2
+                             // Bits 6-7 for Color 3
+                             TilePixelValue::Two => (palette >> 2) & 0x03,
+                             TilePixelValue::Three => (palette >> 4) & 0x03,
+                         };
+                         // Wait, BGP/OBP format:
+                         // Bit 7-6: Color 3
+                         // Bit 5-4: Color 2
+                         // Bit 3-2: Color 1
+                         // Bit 1-0: Color 0 (Transparent for Sprites)
+                         
+                         // My previous code:
+                         // TilePixelValue::One => (palette >> 2) & 0x03,
+                         // TilePixelValue::Two => (palette >> 4) & 0x03,
+                         // TilePixelValue::Three => (palette >> 6) & 0x03,
+                         
+                         // Correct mapping:
+                         // Val 0 -> Bits 0-1
+                         // Val 1 -> Bits 2-3
+                         // Val 2 -> Bits 4-5
+                         // Val 3 -> Bits 6-7
+                         
+                         let color_bits = match pixel_val {
+                             TilePixelValue::Zero => 0,
+                             TilePixelValue::One => (palette >> 2) & 0x03,
+                             TilePixelValue::Two => (palette >> 4) & 0x03,
+                             TilePixelValue::Three => (palette >> 6) & 0x03,
+                         };
+
+                         let color = match color_bits {
+                             0 => 0x00E0F8D0,
+                             1 => 0x0088C070,
+                             2 => 0x00346856,
+                             3 => 0x00081820,
+                             _ => 0x00E0F8D0,
+                         };
+                         framebuffer[(screen_y as usize) * SCREEN_WIDTH + (screen_x as usize)] = color;
+                     }
+                 }
             }
         }
     }
@@ -187,50 +296,15 @@ impl GPU {
                     let pixel_value = self.tile_set[tile_index][pixel_y][pixel_x];
 
                     let color = match pixel_value {
-                        TilePixelValue::Zero => 0xFFFFFFFF,  // White
-                        TilePixelValue::One => 0xAAAAAAFF,   // Light gray
-                        TilePixelValue::Two => 0x555555FF,   // Dark gray
-                        TilePixelValue::Three => 0x000000FF, // Black
+                        TilePixelValue::Zero => 0x00E0F8D0,
+                        TilePixelValue::One => 0x0088C070,
+                        TilePixelValue::Two => 0x00346856,
+                        TilePixelValue::Three => 0x00081820,
                     };
 
                     framebuffer[y * SCREEN_WIDTH + x] = color;
                 }
             }
         }
-    }
-
-    pub fn dump_vram(&self) -> std::io::Result<()> {
-        let file_path = "vram_dump.txt";
-        // Check if the file exists and is not empty
-        if let Ok(metadata) = std::fs::metadata(file_path) {
-            if metadata.len() > 0 {
-                // File is not empty, skip dumping
-                return Ok(());
-            }
-        }
-        let mut file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open("vram_dump.txt")?;
-
-        writeln!(file, "VRAM Dump (0x8000-0x9FFF):")?;
-
-        for (i, byte) in self.vram.iter().enumerate() {
-            // Write the address at the start of each row
-            if i % 16 == 0 {
-                write!(file, "0x{:04X}: ", VRAM_BEGIN + i)?;
-            }
-
-            // Write the byte in hexadecimal format
-            write!(file, "{:02X} ", byte)?;
-
-            // Add a newline after every 16 bytes
-            if i % 16 == 15 {
-                writeln!(file)?;
-            }
-        }
-
-        Ok(())
     }
 }
