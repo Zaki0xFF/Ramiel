@@ -8,3 +8,11 @@ Ramiel - Gameboy emulator written in Rust🦀
 <hr>
 <h3>This emulator was developed solely for educational purposes, as a way to better understand how emulation and retro console architecture work. It is intended as a learning tool and not for commercial use. All copyrighted content must be obtained legally and used in accordance with applicable laws.
 </h3>
+
+## Demo
+
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/demo.mp4" width="600" />
+</div>
+
+<br>

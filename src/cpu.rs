@@ -1,4 +1,5 @@
 use crate::gpu::*;
+use crate::apu::APU;
 use crate::instructions::*;
 use crate::registers::*;
 use std::fs::File;
@@ -12,7 +13,9 @@ pub struct CPU {
     pub bus: MemoryBus,
     is_halted: bool,
     pub cycle_count: u16,
+    pub total_cycles: u64,
     pub debug_mode: bool,
+    ime_enable_delay: u8,
 }
 
 #[allow(dead_code)]
@@ -21,8 +24,14 @@ pub struct MemoryBus {
     pub cartridge_data: Vec<u8>,
     pub rom_bank: u8,
     pub gpu: GPU,
+    pub apu: APU,
     pub div_counter: u16,
     pub tima_counter: u16,
+    pub mbc_type: u8,
+    pub ram_bank: u8,
+    pub ram_enabled: bool,
+    pub banking_mode: bool, // MBC1: 0=ROM, 1=RAM
+    pub external_ram: Vec<u8>,
     pub joypad_state: u8, // Internal state: 1=Pressed. Bits: 0=Right, 1=Left, 2=Up, 3=Down, 4=A, 5=B, 6=Select, 7=Start
 }
 
@@ -64,8 +73,22 @@ impl MemoryBus {    #[inline(always)]
 
                 d100
             }
+            0xA000..=0xBFFF => {
+                if self.ram_enabled {
+                    let offset = (self.ram_bank as usize * 0x2000) + (address as usize - 0xA000);
+                    if offset < self.external_ram.len() {
+                        self.external_ram[offset]
+                    } else {
+                        0xFF
+                    }
+                } else {
+                    0xFF
+                }
+            }
             0xFF44 => self.gpu.ly,
+            0xFF10..=0xFF3F => self.apu.read_byte(address as u16),
             0xFF4D | 0xFF4F | 0xFF51..=0xFF55 | 0xFF68..=0xFF6B | 0xFF70 => 0xFF,
+            0xE000..=0xFDFF => self.memory[address - 0x2000],
             _ => self.memory[address],
         }
     }
@@ -73,26 +96,89 @@ impl MemoryBus {    #[inline(always)]
     #[inline(always)]
     pub fn write_byte(&mut self, address: u16, value: u8) {
         match address as usize {
-            // MBC1 ROM Bank Change
-            0x2000..=0x3FFF => {
-                let mut bank = value & 0x1F;
-                if bank == 0 {
-                    bank = 1;
-                }
-                self.rom_bank = bank;
-                
-                // Remap ROM Bank 1 (0x4000-0x7FFF)
-                let bank_offset = (bank as usize) * 0x4000;
-                if bank_offset < self.cartridge_data.len() {
-                    let end = (bank_offset + 0x4000).min(self.cartridge_data.len());
-                    let len = end - bank_offset;
-                    self.memory[0x4000..0x4000+len].copy_from_slice(&self.cartridge_data[bank_offset..end]);
+            // MBC Logic
+            0x0000..=0x7FFF => {
+                match self.mbc_type {
+                    0x01..=0x03 => { // MBC1
+                        match address {
+                            0x0000..=0x1FFF => { // RAM Enable
+                                self.ram_enabled = (value & 0x0F) == 0x0A;
+                            }
+                            0x2000..=0x3FFF => { // ROM Bank Low (5 bits)
+                                let mut bank_params = value & 0x1F;
+                                if bank_params == 0 { bank_params = 1; }
+                                
+                                let current_bank = self.rom_bank & 0xE0; // Keep high 3 bits (if any, typically only bit 5-6 used in advanced MBC1)
+                                let new_bank = current_bank | bank_params;
+                                
+                                // Handle special case: 0x20, 0x40, 0x60 map to 0x21, 0x41, 0x61 if masked logic applies?
+                                // Standard MBC1: 0, 0x20, 0x40, 0x60 are not reachable. 0->1 is handled.
+                                // Actually, MBC1 only has effectively 5 bits set here. The upper bits are set via 0x4000 reg if mode=0.
+                                // Let's stick to standard behavior.
+                                
+                                self.rom_bank = new_bank;
+                                self.update_rom_bank();
+                            }
+                            0x4000..=0x5FFF => { // RAM Bank or ROM Bank High
+                                if self.banking_mode {
+                                    // RAM Banking Mode
+                                    if value & 0x03 < 4 {
+                                         self.ram_bank = value & 0x03;
+                                    }
+                                } else {
+                                    // ROM Banking Mode (Upper 2 bits of ROM Bank)
+                                    let upper_bits = (value & 0x03) << 5;
+                                    self.rom_bank = (self.rom_bank & 0x1F) | upper_bits;
+                                    if self.rom_bank == 0 { self.rom_bank = 1; }
+                                    self.update_rom_bank();
+                                }
+                            }
+                            0x6000..=0x7FFF => { // Banking Mode Select
+                                self.banking_mode = (value & 0x01) != 0;
+                            }
+                            _ => {}
+                        }
+                    }
+                    0x0F..=0x13 => { // MBC3
+                        match address {
+                            0x0000..=0x1FFF => { // RAM/Timer Enable
+                                self.ram_enabled = (value & 0x0F) == 0x0A;
+                            }
+                            0x2000..=0x3FFF => { // ROM Bank (7 bits)
+                                let mut bank = value & 0x7F;
+                                if bank == 0 { bank = 1; }
+                                self.rom_bank = bank;
+                                self.update_rom_bank();
+                            }
+                            0x4000..=0x5FFF => { // RAM Bank Number / RTC Select
+                                if value <= 0x03 {
+                                    self.ram_bank = value;
+                                }
+                                // RTC mapping ignored for now
+                            }
+                            _ => {}
+                        }
+                    }
+                    _ => {
+                        // Default / No MBC behavior (or simplistic)
+                    }
                 }
             }
+             
             // VRAM
             VRAM_BEGIN..=VRAM_END => {
                 self.gpu.write_vram(address as usize - VRAM_BEGIN, value);
                 self.memory[address as usize] = value;
+            }
+
+            // External RAM Write 
+            0xA000..=0xBFFF => {
+                if self.ram_enabled {
+                     let offset = (self.ram_bank as usize * 0x2000) + (address as usize - 0xA000);
+                     if offset < self.external_ram.len() {
+                         self.external_ram[offset] = value;
+                     }
+                }
             }
 
             // GPU Registers
@@ -151,6 +237,16 @@ impl MemoryBus {    #[inline(always)]
                 self.memory[address as usize] = value;
                 self.gpu.obp1 = value;
             }
+            0xFF4A => {
+                // WY
+                self.memory[address as usize] = value;
+                self.gpu.wy = value;
+            }
+            0xFF4B => {
+                // WX
+                self.memory[address as usize] = value;
+                self.gpu.wx = value;
+            }
             0xFE00..=0xFE9F => {
                 self.gpu.write_oam(address as usize - 0xFE00, value);
                 self.memory[address as usize] = value;
@@ -180,6 +276,10 @@ impl MemoryBus {    #[inline(always)]
                     self.memory[0xFF02] &= !0x80; 
                 }
             }
+            0xFF10..=0xFF3F => self.apu.write_byte(address as u16, value),
+            0xE000..=0xFDFF => {
+                self.memory[address as usize - 0x2000] = value;
+            }
             _ => {
                 self.memory[address as usize] = value;
             }
@@ -193,6 +293,10 @@ impl MemoryBus {    #[inline(always)]
 
         self.cartridge_data = buffer;
         
+        if self.cartridge_data.len() > 0x147 {
+            self.mbc_type = self.cartridge_data[0x147];
+        }
+
         // MBC1 Default Banking
         // Bank 0 (0x0000-0x3FFF) is always the first 16KB
         if self.cartridge_data.len() >= 0x4000 {
@@ -207,6 +311,15 @@ impl MemoryBus {    #[inline(always)]
         }
 
         Ok(())
+    }
+
+    fn update_rom_bank(&mut self) {
+        let bank_offset = (self.rom_bank as usize) * 0x4000;
+        if bank_offset < self.cartridge_data.len() {
+             let end = (bank_offset + 0x4000).min(self.cartridge_data.len());
+             let len = end - bank_offset;
+             self.memory[0x4000..0x4000+len].copy_from_slice(&self.cartridge_data[bank_offset..end]);
+        }
     }
 }
 
@@ -237,13 +350,21 @@ impl Default for CPU {
                 cartridge_data: Vec::new(),
                 rom_bank: 1,
                 gpu: GPU::new(),
+                apu: APU::new(44100),
                 div_counter: 0,
                 tima_counter: 0,
                 joypad_state: 0,
+                mbc_type: 0,
+                ram_bank: 0,
+                ram_enabled: false,
+                banking_mode: false,
+                external_ram: vec![0; 32 * 1024], // 32KB SRAM
             },
             is_halted: false,
             cycle_count: 0,
+            total_cycles: 0,
             debug_mode: false,
+            ime_enable_delay: 0,
         }
     }
 }
@@ -266,8 +387,9 @@ impl CPU {
         Ok(cpu)
     }
 
-    pub fn _new_with_rom(path: &Path) -> std::io::Result<Self> {
+    pub fn _new_with_rom(path: &Path, sample_rate: u32) -> std::io::Result<Self> {
         let mut cpu = CPU::default();
+        cpu.bus.apu = APU::new(sample_rate);
         cpu.bus.load_rom(path).unwrap();
         cpu.pc = 0x100;
         cpu.sp = 0xFFFE;
@@ -621,18 +743,16 @@ impl CPU {
     }
 
     pub fn push(&mut self, value: u16) {
-        if self.sp < 2 {
-            panic!("Stack overflow");
-        }
+        // Stack overflow check removed to allow wrapping
+
         self.sp = self.sp.wrapping_sub(2);
         self.bus.write_byte(self.sp, value as u8);
         self.bus.write_byte(self.sp.wrapping_add(1), (value >> 8) as u8);
     }
 
     pub fn pop(&mut self) -> u16 {
-        if self.sp > 0xFFFD {
-            panic!("Stack underflow");
-        }
+        // Stack underflow check removed to allow wrapping
+
 
         let ret = self.bus.read_byte(self.sp) as u16
             | (self.bus.read_byte(self.sp.wrapping_add(1)) as u16) << 8;
@@ -645,13 +765,37 @@ impl CPU {
     }
 
     pub fn step(&mut self) {
-        // Handle interrupts before fetching instruction
-        self.handle_interrupts();
+        self.total_cycles += 4; 
+        if self.total_cycles < 10000 || self.total_cycles % 100000 == 0 {
+             // log::info!("PC: {:04X}, Op: {:02X}, SP: {:04X}, LY: {}, IME: {}", self.pc, self.bus.read_byte(self.pc), self.sp, self.bus.gpu.ly, self.registers.ime);
+        }
+        // Handle EI delay
+        if self.ime_enable_delay > 0 {
+            self.ime_enable_delay -= 1;
+            if self.ime_enable_delay == 0 {
+                self.registers.ime = true;
+            }
+        }
+
+        // Handle interrupts
+        if self.handle_interrupts() {
+            self.cycle_count = 20;
+            self.update_timers(20);
+            self.bus.apu.step(20);
+            let (vblank, stat) = self.bus.gpu.step(20);
+            // Although interrupts are disabled during dispatch (DI), 
+            // the flags can still be set by GPU for next time.
+            if vblank { self.request_interrupt(0); }
+            if stat { self.request_interrupt(1); }
+            return;
+        }
 
         if self.is_halted {
+            // log::info!("Halted. IE: {:02X}, IF: {:02X}, IME: {}", self.bus.read_byte(0xFFFF), self.bus.read_byte(0xFF0F), self.registers.ime);
             self.cycle_count = 4; // HALT consumes 4 M-cycles
             self.update_timers(16); // 4 M-cycles * 4 = 16 T-cycles
-            let (vblank, stat) = self.bus.gpu.step(4);
+            self.bus.apu.step(16);
+            let (vblank, stat) = self.bus.gpu.step(16);
             if vblank {
                 self.request_interrupt(0); // VBlank
             }
@@ -673,6 +817,7 @@ impl CPU {
                 self.cycle_count = cycles;
                 
                 self.update_timers(cycles);
+                self.bus.apu.step(cycles as u64);
                 let (vblank, stat) = self.bus.gpu.step(cycles);
                 if vblank {
                     self.request_interrupt(0); // VBlank
@@ -700,7 +845,7 @@ impl CPU {
         self.bus.write_byte(0xFF0F, if_flag);
     }
 
-    fn handle_interrupts(&mut self) {
+    fn handle_interrupts(&mut self) -> bool {
         let ie = self.bus.read_byte(0xFFFF);
         let if_flag = self.bus.read_byte(0xFF0F);
 
@@ -709,16 +854,17 @@ impl CPU {
         }
 
         if !self.registers.ime {
-            return;
+            return false;
         }
 
         // Priority: VBlank, STAT, Timer, Serial, Joypad
         for i in 0..5 {
             if (if_flag & ie) & (1 << i) != 0 {
                 self.service_interrupt(i);
-                return; // Only service one interrupt per step
+                return true; // Only service one interrupt per step
             }
         }
+        false
     }
 
     fn service_interrupt(&mut self, interrupt_bit: u8) {
@@ -735,6 +881,12 @@ impl CPU {
             4 => 0x0060, // Joypad
             _ => 0x0000,
         };
+        
+        // Interrupt dispatch takes 5 M-Cycles (20 T-Cycles)
+        self.update_timers(20);
+        let (vblank, stat) = self.bus.gpu.step(20);
+        if vblank { self.request_interrupt(0); }
+        if stat { self.request_interrupt(1); }
     }
 
     fn update_timers(&mut self, cycles: u16) {
@@ -1239,10 +1391,12 @@ impl CPU {
             }
             Instruction::DI() => {
                 self.registers.ime = false;
+                self.ime_enable_delay = 0;
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::EI() => {
-                self.registers.ime = true;
+
+                self.ime_enable_delay = 2;
                 self.pc = self.pc.wrapping_add(1);
             }
             Instruction::JP(condition, address) => {
@@ -1444,17 +1598,7 @@ impl CPU {
              // println!("Looping at C01A, A: {:02x}", self.registers.a);
         }
 
-        let cycles = self.get_instruction_cycles(&instruction);
-        self.cycle_count = cycles;
-        // Timer uses T-cycles (4x M-cycles), so multiply by 4
-        self.update_timers(cycles * 4);
-        let (vblank, stat) = self.bus.gpu.step(self.cycle_count);
-        if vblank {
-            self.request_interrupt(0); // VBlank
-        }
-        if stat {
-            self.request_interrupt(1); // LCD STAT
-        }
         self.pc
     }
+
 }
