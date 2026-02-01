@@ -12,7 +12,7 @@ Ramiel - Gameboy emulator written in Rust🦀
 ## Demo
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/demo.mp4" width="600" />
+  <video src="https://github.com/user-attachments/assets/2a58b37d-789c-4532-bac0-26421aef22ab" width="600" />
 </div>
 
 <br>
