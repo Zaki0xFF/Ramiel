@@ -349,13 +349,6 @@ impl GPU {
                              TilePixelValue::Two => (palette >> 2) & 0x03,
                              TilePixelValue::Three => (palette >> 4) & 0x03,
                          };
-                         
-                         let color_bits = match pixel_val {
-                             TilePixelValue::Zero => 0,
-                             TilePixelValue::One => (palette >> 2) & 0x03,
-                             TilePixelValue::Two => (palette >> 4) & 0x03,
-                             TilePixelValue::Three => (palette >> 6) & 0x03,
-                         };
 
                          let color = match color_bits {
                              0 => 0x00E0F8D0,

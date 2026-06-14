@@ -24,8 +24,8 @@ mod instructions_unit {
         //ADD A, (HL)
         let mut cpu = CPU::default();
         cpu.registers.a = 1;
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 2);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 2);
         cpu.execute(Instruction::ADD(
             Target::Register(ArithmeticTarget::A),
             Target::MemoryR16(DoubleTarget::HL),
@@ -82,8 +82,8 @@ mod instructions_unit {
         //AND (HL)
         let mut cpu = CPU::default();
         cpu.registers.a = 0b10101010;
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0b11001100);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0b11001100);
         cpu.execute(Instruction::AND(
             Target::Register(ArithmeticTarget::A),
             Target::MemoryR16(DoubleTarget::HL),
@@ -105,8 +105,8 @@ mod instructions_unit {
     #[test]
     fn test_adc_a_hl_no_carry() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x12);
         cpu.registers.a = 0x34;
         cpu.registers.f.carry = false;
 
@@ -122,8 +122,8 @@ mod instructions_unit {
     #[test]
     fn test_adc_a_hl_with_carry() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x12);
         cpu.registers.a = 0x34;
         cpu.registers.f.carry = true;
 
@@ -157,10 +157,10 @@ mod instructions_unit {
     #[test]
     fn sra_hl() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0b10000000);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0b10000000);
         cpu.execute(Instruction::SRA(Target::MemoryR16(DoubleTarget::HL)));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0b11000000);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0b11000000);
         assert!(!cpu.registers.f.carry);
     }
 
@@ -176,28 +176,28 @@ mod instructions_unit {
     #[test]
     fn sla_hl() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0b10000000);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0b10000000);
         cpu.execute(Instruction::SLA(Target::MemoryR16(DoubleTarget::HL)));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0b00000000);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0b00000000);
         assert!(cpu.registers.f.carry);
     }
 
     #[test]
     fn srl_hl() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0b10000000);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0b10000000);
         cpu.execute(Instruction::SRL(Target::MemoryR16(DoubleTarget::HL)));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0b01000000);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0b01000000);
         assert!(!cpu.registers.f.carry);
     }
 
     #[test]
     fn test_adc_a_hl_with_overflow() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0xFF);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0xFF);
         cpu.registers.a = 0x01;
         cpu.registers.f.carry = true;
 
@@ -223,8 +223,8 @@ mod instructions_unit {
     fn bit_hl() {
         //BIT (HL)
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0b00001000);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0b00001000);
         cpu.execute(Instruction::BIT(3, Target::MemoryR16(DoubleTarget::HL)));
         assert!(!cpu.registers.f.zero);
     }
@@ -251,8 +251,8 @@ mod instructions_unit {
     fn cp_hl() {
         let mut cpu = CPU::default();
         cpu.registers.a = 0x12;
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x12);
         cpu.execute(Instruction::CP(Target::MemoryR16(DoubleTarget::HL)));
         assert!(cpu.registers.f.zero);
     }
@@ -302,10 +302,10 @@ mod instructions_unit {
     #[test]
     fn dec_hl() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x12);
         cpu.execute(Instruction::DEC(Target::MemoryR16(DoubleTarget::HL)));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0x11);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0x11);
     }
 
     #[test]
@@ -337,8 +337,8 @@ mod instructions_unit {
     fn sbc_hl() {
         let mut cpu = CPU::default();
         cpu.registers.a = 0x03;
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x02);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x02);
         cpu.registers.f.carry = true;
         cpu.execute(Instruction::SBC(
             Target::MemoryR16(DoubleTarget::HL)
@@ -364,8 +364,8 @@ mod instructions_unit {
     fn sub_hl() {
         let mut cpu = CPU::default();
         cpu.registers.a = 0x02;
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x01);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x01);
         cpu.execute(Instruction::SUB(Target::MemoryR16(DoubleTarget::HL)));
         assert_eq!(cpu.registers.a, 0x01);
         assert!(!cpu.registers.f.zero);
@@ -375,10 +375,10 @@ mod instructions_unit {
     #[test]
     fn inc_memhl() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x12);
         cpu.execute(Instruction::INC(Target::MemoryR16(DoubleTarget::HL)));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0x13);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0x13);
     }
 
     #[test]
@@ -425,6 +425,7 @@ mod instructions_unit {
     fn add_sp_positive() {
         // ADD SP,r8 with positive offset
         let mut cpu = CPU::default();
+        cpu.pc = 0xC000;
         cpu.sp = 0x1000;
         cpu.bus.write_byte(cpu.pc + 1, 0x05); // +5 offset
         cpu.execute(Instruction::ADD(
@@ -441,6 +442,7 @@ mod instructions_unit {
     fn add_sp_negative() {
         // ADD SP,r8 with negative offset
         let mut cpu = CPU::default();
+        cpu.pc = 0xC000;
         cpu.sp = 0x1000;
         cpu.bus.write_byte(cpu.pc + 1, 0xFF); // -1 offset (0xFF as signed byte = -1)
         cpu.execute(Instruction::ADD(
@@ -457,6 +459,7 @@ mod instructions_unit {
     fn add_sp_carry_flag() {
         // ADD SP,r8 - Test carry flag behavior
         let mut cpu = CPU::default();
+        cpu.pc = 0xC000;
         cpu.sp = 0x00FF;
         cpu.bus.write_byte(cpu.pc + 1, 0x01); // +1 offset
         cpu.execute(Instruction::ADD(
@@ -472,6 +475,7 @@ mod instructions_unit {
     fn add_sp_half_carry_flag() {
         // ADD SP,r8 - Test half carry flag behavior
         let mut cpu = CPU::default();
+        cpu.pc = 0xC000;
         cpu.sp = 0x000F;
         cpu.bus.write_byte(cpu.pc + 1, 0x01); // +1 offset
         cpu.execute(Instruction::ADD(
@@ -487,6 +491,7 @@ mod instructions_unit {
     fn ldhlsp_positive() {
         // LD HL,SP+r8 with positive offset
         let mut cpu = CPU::default();
+        cpu.pc = 0xC000;
         cpu.sp = 0x1000;
         cpu.registers.set_hl(0x0000);
         cpu.bus.write_byte(cpu.pc + 1, 0x05); // +5 offset
@@ -499,6 +504,7 @@ mod instructions_unit {
     fn ldhlsp_negative() {
         // LD HL,SP+r8 with negative offset
         let mut cpu = CPU::default();
+        cpu.pc = 0xC000;
         cpu.sp = 0x1000;
         cpu.registers.set_hl(0x0000);
         cpu.bus.write_byte(cpu.pc + 1, 0xFF); // -1 offset (0xFF as signed byte = -1)
@@ -511,6 +517,7 @@ mod instructions_unit {
     fn ldhlsp_flags() {
         // LD HL,SP+r8 - Test flag behavior
         let mut cpu = CPU::default();
+        cpu.pc = 0xC000;
         cpu.sp = 0x00FF;
         cpu.registers.set_hl(0x0000);
         cpu.bus.write_byte(cpu.pc + 1, 0x01); // +1 offset
@@ -530,6 +537,7 @@ mod instructions_unit {
     fn ldhlsp_half_carry_flags() {
         // LD HL,SP+r8 - Test half carry flag behavior
         let mut cpu = CPU::default();
+        cpu.pc = 0xC000;
         cpu.sp = 0x000F;
         cpu.registers.set_hl(0x0000);
         cpu.bus.write_byte(cpu.pc + 1, 0x01); // +1 offset
@@ -597,10 +605,10 @@ mod instructions_unit {
     #[test]
     fn swap_hl() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0b11110000);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0b11110000);
         cpu.execute(Instruction::SWAP(Target::MemoryR16(DoubleTarget::HL)));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0b00001111);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0b00001111);
         assert!(!cpu.registers.f.zero);
         assert!(!cpu.registers.f.subtract);
         assert!(!cpu.registers.f.half_carry);
@@ -637,52 +645,52 @@ mod instructions_unit {
     #[test]
     fn ldi() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
+        cpu.registers.set_hl(0xC000);
         cpu.registers.a = 0x12;
         cpu.execute(Instruction::LDI(
             Target::MemoryR16(DoubleTarget::HL),
             Target::Register(ArithmeticTarget::A),
         ));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
-        assert_eq!(cpu.registers.get_hl(), 0x1235);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0x12);
+        assert_eq!(cpu.registers.get_hl(), 0xC001);
     }
 
     #[test]
     fn ldi_a() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x12);
         cpu.execute(Instruction::LDI(
             Target::Register(ArithmeticTarget::A),
             Target::MemoryR16(DoubleTarget::HL),
         ));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
-        assert_eq!(cpu.registers.get_hl(), 0x1235);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0x12);
+        assert_eq!(cpu.registers.get_hl(), 0xC001);
     }
 
     #[test]
     fn ldd() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
+        cpu.registers.set_hl(0xC000);
         cpu.registers.a = 0x12;
         cpu.execute(Instruction::LDD(
             Target::MemoryR16(DoubleTarget::HL),
             Target::Register(ArithmeticTarget::A),
         ));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
-        assert_eq!(cpu.registers.get_hl(), 0x1233);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0x12);
+        assert_eq!(cpu.registers.get_hl(), 0xBFFF);
     }
 
     #[test]
     fn ldd_a() {
         let mut cpu = CPU::default();
-        cpu.registers.set_hl(0x1234);
-        cpu.bus.write_byte(0x1234, 0x12);
+        cpu.registers.set_hl(0xC000);
+        cpu.bus.write_byte(0xC000, 0x12);
         cpu.execute(Instruction::LDD(
             Target::Register(ArithmeticTarget::A),
             Target::MemoryR16(DoubleTarget::HL),
         ));
-        assert_eq!(cpu.bus.read_byte(0x1234), 0x12);
-        assert_eq!(cpu.registers.get_hl(), 0x1233);
+        assert_eq!(cpu.bus.read_byte(0xC000), 0x12);
+        assert_eq!(cpu.registers.get_hl(), 0xBFFF);
     }
 }
